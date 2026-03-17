@@ -1,0 +1,21 @@
+{
+  "name": "huginn-scanner",
+  "version": "0.1.0",
+  "description": "Document intelligence scanner — blind metadata extraction for automotive technical documents",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "officeparser": "^4.1.0",
+    "franc": "^6.2.0",
+    "glob": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  }
+}

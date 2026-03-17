@@ -1,0 +1,64 @@
+services:
+  tika:
+    image: apache/tika:latest
+    ports:
+      - "9998:9998"
+    restart: unless-stopped
+    # No Docker healthcheck — the JRE base image has no curl/wget.
+    # The scanner performs its own Tika health check at startup and
+    # skips PDF parsing gracefully if Tika is unreachable.
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  # Pulls required models into the shared volume before the scanner starts.
+  # Skipped on subsequent runs if models already exist (ollama pull is idempotent).
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "ollama pull nomic-embed-text && ollama pull llama3.1:8b"
+    restart: "no"
+
+  scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile.scanner
+    depends_on:
+      tika:
+        condition: service_started
+      ollama-init:
+        condition: service_completed_successfully
+    volumes:
+      - ${DOCUMENTS_PATH:-./_test-docs}:/documents:ro
+      - ./reports:/reports
+    environment:
+      - TIKA_URL=http://tika:9998
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_EMBED_MODEL=nomic-embed-text
+      - OLLAMA_CHAT_MODEL=llama3.1:8b
+      - DOCUMENTS_ROOT=/documents
+      - REPORT_OUTPUT=/reports
+      - LLM_SAMPLE_RATE=0.05
+    command: bun run src/index.ts
+
+volumes:
+  ollama_data:

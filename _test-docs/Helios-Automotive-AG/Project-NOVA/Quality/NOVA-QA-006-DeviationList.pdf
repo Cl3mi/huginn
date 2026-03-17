@@ -1,0 +1,123 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 1230 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+() Tj
+72 736 Td
+(Requirements Deviation List) Tj
+72 722 Td
+(Document ID: NOVA-QA-006  Revision: 1.0  Date: 2024-07-10) Tj
+72 708 Td
+(Project: NOVA - Battery Management System) Tj
+72 694 Td
+(Supplier: Vertex Systems GmbH   Customer: Helios Automotive AG) Tj
+72 680 Td
+(Reference document: NOVA-SRS-001 Rev 2.0) Tj
+72 666 Td
+(Classification: Confidential) Tj
+72 652 Td
+() Tj
+72 638 Td
+(1. Purpose) Tj
+72 624 Td
+(This document records all approved and pending deviations from NOVA-SRS-001 Rev 2.0.) Tj
+72 610 Td
+(Deviations require written approval from Helios Automotive AG quality engineering.) Tj
+72 596 Td
+() Tj
+72 582 Td
+(2. Deviation Table) Tj
+72 568 Td
+(DEV-ID  | REQ-ID       | Requirement                 | Deviation         | Status) Tj
+72 554 Td
+(DEV-001 | HAG-REQ-P005 | IP67 protection class       | IP54 acceptable   | APPROVED) Tj
+72 540 Td
+(         Justification: Integration area is protected from direct water ingress.) Tj
+72 526 Td
+(         Risk assessment: LOW. Valid until: SOP \(2025-06-01\).) Tj
+72 512 Td
+(         Approved by: R. Schmidt, Helios QE, 2024-06-30.) Tj
+72 498 Td
+() Tj
+72 484 Td
+(DEV-002 | HAG-REQ-F008 | SOC accuracy +/-2%          | +/-2.5% accepted  | PENDING) Tj
+ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+6 0 obj
+<< /Length 1310 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(         Justification: Algorithm limitation in SW v2.1.x, fix in v2.2.) Tj
+72 736 Td
+(         Risk assessment: MEDIUM. Customer impact: range estimate slightly off.) Tj
+72 722 Td
+(         Requested by: Vertex Systems, 2024-07-08. Decision pending Helios review.) Tj
+72 708 Td
+() Tj
+72 694 Td
+(DEV-003 | HAG-REQ-P004 | MTBF >= 50,000 h            | 48,000 h predicted| APPROVED) Tj
+72 680 Td
+(         Justification: NTC sensor MTBF lower than predicted in early BOM.) Tj
+72 666 Td
+(         Risk assessment: LOW. Corrective: sensor upgraded in Rev D hardware.) Tj
+72 652 Td
+(         Approved by: R. Schmidt, Helios QE, 2024-07-05.) Tj
+72 638 Td
+() Tj
+72 624 Td
+(DEV-004 | HAG-REQ-F011 | Cybersecurity ISO 21434      | Partial compliance| OPEN) Tj
+72 610 Td
+(         Justification: Full ISO 21434 audit not complete \(scheduled Q4 2024\).) Tj
+72 596 Td
+(         Risk assessment: MEDIUM. Not safety-critical but regulatory risk.) Tj
+72 582 Td
+(         Requested: 2024-07-10. Escalation if not resolved by 2024-10-01.) Tj
+72 568 Td
+() Tj
+72 554 Td
+(3. Summary) Tj
+72 540 Td
+(Total deviations: 4. Approved: 2. Pending: 1. Open: 1.) Tj
+72 526 Td
+(No safety-critical deviations approved.) Tj
+72 512 Td
+(DEV-002 and DEV-004 require resolution before SOP release.) Tj
+72 498 Td
+() Tj
+ET
+
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000296 00000 n 
+0000001578 00000 n 
+0000001753 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+3115
+%%EOF

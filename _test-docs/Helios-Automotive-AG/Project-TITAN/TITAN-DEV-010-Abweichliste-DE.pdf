@@ -1,0 +1,121 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R] /Count 2 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 1177 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+() Tj
+72 736 Td
+(Abweichliste Technische Anforderungen) Tj
+72 722 Td
+(Dokument-ID: TITAN-DEV-010  Revision: 1.0  Datum: 2024-08-20) Tj
+72 708 Td
+(Projekt: TITAN - Vorderachstraeger) Tj
+72 694 Td
+(Lieferant: Apex Components GmbH   Kunde: Helios Automotive AG) Tj
+72 680 Td
+(Referenzdokument: TITAN-SRS-009 Rev 1.0) Tj
+72 666 Td
+() Tj
+72 652 Td
+(1. Zweck) Tj
+72 638 Td
+(Dieses Dokument erfasst alle beantragten und genehmigten Abweichungen von TITAN-SRS-009.) Tj
+72 624 Td
+() Tj
+72 610 Td
+(2. Abweichungstabelle) Tj
+72 596 Td
+(ABW-ID  | REQ-ID       | Anforderung              | Abweichung         | Status) Tj
+72 582 Td
+(ABW-001 | AC-REQ-M001  | Zugfestigkeit >= 900 MPa | 880 MPa Charge L47 | ABGELEHNT) Tj
+72 568 Td
+(         Begruendung: Werkstoff-Charge L47 Pruefzeugnis zeigt 880 MPa.) Tj
+72 554 Td
+(         Entscheidung: Charge L47 gesperrt, Ersatz erforderlich.) Tj
+72 540 Td
+(         Verantwortlich: G. Huber, Helios QE, 2024-08-18.) Tj
+72 526 Td
+() Tj
+72 512 Td
+(ABW-002 | AC-REQ-G003  | Gewicht 12.4 +/- 0.3 kg | 12.8 kg gemessen   | GENEHMIGT) Tj
+72 498 Td
+(         Begruendung: Schweissnaht-Zusatzwerkstoff leicht erhoehtes Gewicht.) Tj
+ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+6 0 obj
+<< /Length 1270 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(         Risikoabschaetzung: GERING. Kein Einfluss auf Funktion oder Sicherheit.) Tj
+72 736 Td
+(         Genehmigt: R. Schmidt, Helios QE, 2024-08-15.) Tj
+72 722 Td
+() Tj
+72 708 Td
+(ABW-003 | AC-REQ-T003  | 480 h Salzspruehtest     | 360 h bis Erstmust.| GENEHMIGT) Tj
+72 694 Td
+(         Begruendung: Testkapazitaet beim Pruefinstitut begrenzt.) Tj
+72 680 Td
+(         Vollstaendiger Test fuer Serienfreigabe erforderlich.) Tj
+72 666 Td
+(         Genehmigt: R. Schmidt, Helios QE, 2024-08-10. Gueltig bis: Serienanlauf.) Tj
+72 652 Td
+() Tj
+72 638 Td
+(ABW-004 | AC-REQ-T001  | Kein Anriss bei 45 kN   | Haarriss Probe 3   | OFFEN) Tj
+72 624 Td
+(         Begruendung: Probe 3 von 5 zeigt Haarriss bei 43 kN.) Tj
+72 610 Td
+(         Sicherheitsrelevant. Eskalation erforderlich.) Tj
+72 596 Td
+(         Naechste Massnahme: FEM-Analyse und Schweissnaht-Optimierung.) Tj
+72 582 Td
+(         Frist: 2024-09-15. Eigentueamer: Apex Components GmbH.) Tj
+72 568 Td
+() Tj
+72 554 Td
+(3. Zusammenfassung) Tj
+72 540 Td
+(Gesamt: 4 Abweichungen. Genehmigt: 2. Abgelehnt: 1. Offen: 1.) Tj
+72 526 Td
+(ABW-004 ist sicherheitsrelevant und erfordert sofortige Bearbeitung.) Tj
+72 512 Td
+(ABW-001 und ABW-004 blockieren die Erstmusterfreigabe.) Tj
+72 498 Td
+() Tj
+ET
+
+endstream
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000121 00000 n 
+0000000296 00000 n 
+0000001525 00000 n 
+0000001700 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+3022
+%%EOF

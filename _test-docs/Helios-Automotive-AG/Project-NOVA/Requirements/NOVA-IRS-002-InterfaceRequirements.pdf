@@ -1,0 +1,187 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 1455 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+() Tj
+72 736 Td
+(Interface Requirements Specification) Tj
+72 722 Td
+(Document ID: NOVA-IRS-002  Revision: 1.1  Date: 2024-02-28) Tj
+72 708 Td
+(Project: NOVA - Battery Management System \(BMS\) Module) Tj
+72 694 Td
+(Supplier: Vertex Systems GmbH   Customer: Helios Automotive AG) Tj
+72 680 Td
+(Classification: Confidential) Tj
+72 666 Td
+(Parent document: NOVA-SRS-001 \(System Requirements Specification\)) Tj
+72 652 Td
+() Tj
+72 638 Td
+(1. Scope) Tj
+72 624 Td
+(This document specifies all electrical, mechanical, and software interfaces of the NOVA BMS.) Tj
+72 610 Td
+(All interface requirements are derived from and traceable to NOVA-SRS-001.) Tj
+72 596 Td
+() Tj
+72 582 Td
+(2. CAN Bus Interface) Tj
+72 568 Td
+(VX-IRS-C001: BMS shall connect to vehicle CAN-H/CAN-L via 120-ohm termination resistor.) Tj
+72 554 Td
+(VX-IRS-C002: CAN baud rate: 500 kbps \(nominal\), switchable to 250 kbps for diagnostics.) Tj
+72 540 Td
+(VX-IRS-C003: CAN message 0x1A0 - SOC Broadcast.) Tj
+72 526 Td
+(  Byte 0-1: SOC value \(0-1000, resolution 0.1%\).) Tj
+72 512 Td
+(  Byte 2-3: Pack voltage \(0-65535, resolution 0.01 V\).) Tj
+72 498 Td
+(  Byte 4: Pack temperature \(0-255, offset -40, resolution 1 degree C\).) Tj
+72 484 Td
+(  Byte 5: Status flags \(bit 0: charging, bit 1: fault, bit 2: balancing\).) Tj
+72 470 Td
+(  Cycle time: 100 ms. See HAG-REQ-F004 in NOVA-SRS-001.) Tj
+72 456 Td
+(VX-IRS-C004: CAN message 0x1A1 - Cell Voltage Detailed.) Tj
+ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+6 0 obj
+<< /Length 1546 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(  Bytes 0-7: Cell voltages 1-4 \(16-bit each, resolution 1 mV\).) Tj
+72 736 Td
+(  Cycle time: 500 ms.) Tj
+72 722 Td
+(VX-IRS-C005: CAN message 0x1B0 - Fault Code.) Tj
+72 708 Td
+(  Byte 0: Fault category \(0=none, 1=voltage, 2=thermal, 3=comm, 4=hardware\).) Tj
+72 694 Td
+(  Byte 1-2: Fault code \(see DTC table in section 5\).) Tj
+72 680 Td
+(  Byte 3: Severity \(0=info, 1=warning, 2=critical\).) Tj
+72 666 Td
+() Tj
+72 652 Td
+(3. LIN Bus Interface \(Optional Diagnostic Extension\)) Tj
+72 638 Td
+(VX-IRS-L001: LIN version 2.1. Baud rate: 19.2 kbps.) Tj
+72 624 Td
+(VX-IRS-L002: BMS acts as LIN slave. Diagnostic master: vehicle gateway ECU.) Tj
+72 610 Td
+(VX-IRS-L003: LIN frame 0x20: read individual cell voltages \(cells 1-8 per frame\).) Tj
+72 596 Td
+() Tj
+72 582 Td
+(4. Power Supply Interface) Tj
+72 568 Td
+(VX-IRS-P001: Supply voltage: 12 V nominal, range 9 V to 16 V. See HAG-REQ-P002.) Tj
+72 554 Td
+(VX-IRS-P002: Inrush current shall not exceed 2 A for more than 10 ms at power-up.) Tj
+72 540 Td
+(VX-IRS-P003: Reverse polarity protection required. Clamp diode minimum 40 V / 5 A.) Tj
+72 526 Td
+(VX-IRS-P004: BMS KL15 wake-up input: active high, 12 V logic, hysteresis 0.5 V.) Tj
+72 512 Td
+() Tj
+72 498 Td
+(5. Mechanical Interface) Tj
+72 484 Td
+(VX-IRS-M001: Connector: 48-pin sealed automotive connector. Mating half specified by OEM.) Tj
+72 470 Td
+(VX-IRS-M002: Mounting: 4x M6 screws, torque 8 Nm plus or minus 1 Nm.) Tj
+72 456 Td
+(VX-IRS-M003: Enclosure dimensions: 180 mm x 120 mm x 45 mm. Weight < 850 g.) Tj
+ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+8 0 obj
+<< /Length 1190 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(VX-IRS-M004: IP protection class: IP54 \(Rev 1.0\) / IP67 \(Rev 2.0 per HAG-REQ-P005\).) Tj
+72 736 Td
+() Tj
+72 722 Td
+(6. Diagnostic Trouble Codes \(DTC\)) Tj
+72 708 Td
+(DTC 0x0101: Cell over-voltage. Threshold: > 4.25 V. Safety-critical.) Tj
+72 694 Td
+(DTC 0x0102: Cell under-voltage. Threshold: < 2.5 V. Safety-critical.) Tj
+72 680 Td
+(DTC 0x0201: Pack over-temperature. Threshold: > 60 degrees C. Safety-critical.) Tj
+72 666 Td
+(DTC 0x0202: Pack under-temperature. Threshold: < -40 degrees C.) Tj
+72 652 Td
+(DTC 0x0301: CAN bus communication loss. Timeout: > 200 ms.) Tj
+72 638 Td
+(DTC 0x0401: Watchdog reset occurred. Logged with timestamp.) Tj
+72 624 Td
+() Tj
+72 610 Td
+(7. Traceability) Tj
+72 596 Td
+(VX-IRS-C003 traces to HAG-REQ-F004 \(NOVA-SRS-001\).) Tj
+72 582 Td
+(VX-IRS-P001 traces to HAG-REQ-P002 \(NOVA-SRS-001\).) Tj
+72 568 Td
+(VX-IRS-M004 traces to HAG-REQ-P005 \(NOVA-SRS-001\).) Tj
+72 554 Td
+(All DTC definitions are inputs to NOVA-FMEA-004.) Tj
+72 540 Td
+() Tj
+72 526 Td
+(8. Document History) Tj
+72 512 Td
+(Rev 1.0 | 2024-01-30 | Initial release) Tj
+72 498 Td
+(Rev 1.1 | 2024-02-28 | Added DTC table, LIN details | S. Klaas) Tj
+72 484 Td
+() Tj
+ET
+
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000302 00000 n 
+0000001809 00000 n 
+0000001984 00000 n 
+0000003582 00000 n 
+0000003757 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+4999
+%%EOF

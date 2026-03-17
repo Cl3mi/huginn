@@ -1,0 +1,229 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R 9 0 R] /Count 4 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 1345 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+() Tj
+72 736 Td
+(System Requirements Specification) Tj
+72 722 Td
+(Document ID: NOVA-SRS-001  Revision: 2.0  Date: 2024-06-20) Tj
+72 708 Td
+(Project: NOVA - Battery Management System \(BMS\) Module) Tj
+72 694 Td
+(Supplier: Vertex Systems GmbH   Customer: Helios Automotive AG) Tj
+72 680 Td
+(Classification: Confidential) Tj
+72 666 Td
+(Change summary: Cybersecurity added, accuracy improved, IP class upgraded, safe state tightened.) Tj
+72 652 Td
+() Tj
+72 638 Td
+(1. Scope) Tj
+72 624 Td
+(This document defines system-level requirements for the Battery Management System \(BMS\)) Tj
+72 610 Td
+(developed by Vertex Systems GmbH for integration into the Helios Automotive AG NOVA platform.) Tj
+72 596 Td
+(The BMS monitors and controls a 400 V lithium-ion battery pack for electric vehicles.) Tj
+72 582 Td
+(Applicable standards: ISO 26262:2018, IEC 61851-1:2017, AUTOSAR R22-11, ISO 9001:2015,) Tj
+72 568 Td
+(ISO 21434:2021 \(cybersecurity - added Rev 2.0\).) Tj
+72 554 Td
+(This specification is the baseline for FMEA document NOVA-FMEA-004.) Tj
+72 540 Td
+(Interface definitions are provided separately in NOVA-IRS-002.) Tj
+72 526 Td
+() Tj
+72 512 Td
+(2. System Overview) Tj
+72 498 Td
+(Nominal pack voltage: 400 VDC. Max charge voltage: 450 VDC.) Tj
+72 484 Td
+(Operating temperature range: -40 degrees C to +85 degrees C.) Tj
+ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+6 0 obj
+<< /Length 1658 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(Target ASIL integrity level: ASIL-B \(ISO 26262\).) Tj
+72 736 Td
+(The BMS communicates via CAN 2.0B at 500 kbps and CAN-FD at 2 Mbps \(new Rev 2.0\).) Tj
+72 722 Td
+(Connector standard: 48-pin automotive-grade sealed connector.) Tj
+72 708 Td
+() Tj
+72 694 Td
+(3. Functional Requirements) Tj
+72 680 Td
+(HAG-REQ-F001: The BMS shall monitor individual cell voltages in range 2.5 V to 4.2 V.) Tj
+72 666 Td
+(  Safety-critical. See FMEA entry F-001 in NOVA-FMEA-004.) Tj
+72 652 Td
+(HAG-REQ-F002: Cell voltage measurement accuracy shall be within plus or minus 5 mV.) Tj
+72 638 Td
+(HAG-REQ-F003: The BMS shall monitor pack temperature at a minimum of 8 sensor points.) Tj
+72 624 Td
+(  Safety-critical. Temperature sensor type: NTC 10k.) Tj
+72 610 Td
+(HAG-REQ-F004: The BMS shall transmit State-of-Charge \(SOC\) via CAN.) Tj
+72 596 Td
+(  CAN message ID: 0x1A0. Update rate: 100 ms. Signal definition: see NOVA-IRS-002.) Tj
+72 582 Td
+(HAG-REQ-F005: The BMS shall detect inter-cell balancing deviation exceeding 50 mV.) Tj
+72 568 Td
+(  Passive balancing shall activate automatically.) Tj
+72 554 Td
+(HAG-REQ-F006: Overtemperature protection shall activate at 60 degrees C.) Tj
+72 540 Td
+(  Safety-critical. Thermal runaway prevention per ISO 26262 clause 5.) Tj
+72 526 Td
+(HAG-REQ-F007: The BMS shall support ISO 15118 communication for smart charging.) Tj
+72 512 Td
+(HAG-REQ-F008: State estimation accuracy: SOC plus or minus 2%, SOH plus or minus 4%.) Tj
+72 498 Td
+(  CHANGED from Rev 1.0: accuracy improved from 3%/5% to 2%/4%.) Tj
+72 484 Td
+(HAG-REQ-F009: The BMS shall log all fault events to non-volatile memory \(min 2000 events\).) Tj
+ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+8 0 obj
+<< /Length 1576 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(  CHANGED from Rev 1.0: capacity doubled from 1000 to 2000 events.) Tj
+72 736 Td
+(HAG-REQ-F010: Wake-up time from sleep mode shall not exceed 500 ms.) Tj
+72 722 Td
+(HAG-REQ-F011: The BMS firmware shall implement cybersecurity measures per ISO 21434.) Tj
+72 708 Td
+(  NEW in Rev 2.0. Secure boot, authenticated firmware updates, encrypted diagnostics.) Tj
+72 694 Td
+() Tj
+72 680 Td
+(4. Performance Requirements) Tj
+72 666 Td
+(HAG-REQ-P001: Cell measurement cycle time shall not exceed 10 ms.) Tj
+72 652 Td
+(HAG-REQ-P002: Supply voltage operating range: 9 V to 16 V.) Tj
+72 638 Td
+(HAG-REQ-P003: Quiescent current in sleep mode shall not exceed 500 microamp.) Tj
+72 624 Td
+(HAG-REQ-P004: MTBF shall be >= 50,000 operating hours.) Tj
+72 610 Td
+(HAG-REQ-P005: BMS PCB shall meet IP67 protection class.) Tj
+72 596 Td
+(  CHANGED from Rev 1.0: IP54 upgraded to IP67 per field feedback from Helios.) Tj
+72 582 Td
+() Tj
+72 568 Td
+(5. Safety Requirements \(ASIL-B\)) Tj
+72 554 Td
+(HAG-REQ-S001: BMS functional safety shall achieve ASIL-B per ISO 26262. Safety-critical.) Tj
+72 540 Td
+(HAG-REQ-S002: Safe state shall be entered within 5 ms upon fault detection. Safety-critical.) Tj
+72 526 Td
+(  CHANGED from Rev 1.0: response time tightened from 10 ms to 5 ms.) Tj
+72 512 Td
+(HAG-REQ-S003: Redundant voltage measurement hardware required for ASIL decomposition.) Tj
+72 498 Td
+(  Safety-critical. Two independent measurement channels required.) Tj
+72 484 Td
+(HAG-REQ-S004: Hardware watchdog shall reset BMS within 50 ms on software fault. Safety-critical.) Tj
+ET
+
+endstream
+endobj
+9 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 10 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+10 0 obj
+<< /Length 1153 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(HAG-REQ-S005: Over-voltage disconnect shall be implemented in hardware \(not software\).) Tj
+72 736 Td
+(  Safety-critical. Disconnect threshold: 4.25 V per cell.) Tj
+72 722 Td
+() Tj
+72 708 Td
+(6. Interface Requirements) Tj
+72 694 Td
+(Refer to NOVA-IRS-002 for complete electrical and software interface specifications.) Tj
+72 680 Td
+(CAN bus: 500 kbps, CAN 2.0B. CAN-FD: 2 Mbps data phase \(added Rev 2.0\).) Tj
+72 666 Td
+(LIN bus \(optional\): version 2.1, 19.2 kbps.) Tj
+72 652 Td
+(Power supply: 12 V nominal from vehicle LV network.) Tj
+72 638 Td
+() Tj
+72 624 Td
+(7. Quality and Compliance) Tj
+72 610 Td
+(Applicable standards: ISO 9001:2015, IATF 16949:2016, VDA 6.3, ISO 21434:2021.) Tj
+72 596 Td
+(PPAP documentation required - Level 3 submission to Helios Automotive AG.) Tj
+72 582 Td
+(All requirements shall be verified per updated test plan NOVA-TR-003 Rev 2.) Tj
+72 568 Td
+() Tj
+72 554 Td
+(8. Document History) Tj
+72 540 Td
+(Rev 1.0 | 2024-01-15 | Initial release | T. Weber, Vertex Systems GmbH) Tj
+72 526 Td
+(Rev 2.0 | 2024-06-20 | Cybersecurity, accuracy, IP67, safe-state | T. Weber / S. Klaas) Tj
+72 512 Td
+() Tj
+ET
+
+endstream
+endobj
+xref
+0 11
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000133 00000 n 
+0000000308 00000 n 
+0000001705 00000 n 
+0000001880 00000 n 
+0000003590 00000 n 
+0000003765 00000 n 
+0000005393 00000 n 
+0000005569 00000 n 
+trailer
+<< /Size 11 /Root 1 0 R >>
+startxref
+6775
+%%EOF

@@ -1,0 +1,173 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+4 0 obj
+<< /Length 1237 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+() Tj
+72 736 Td
+(Supplier Quality Audit Report) Tj
+72 722 Td
+(Document ID: NOVA-QA-005  Date: 2024-05-14) Tj
+72 708 Td
+(Audit type: Initial qualification audit \(process audit VDA 6.3\)) Tj
+72 694 Td
+(Supplier: Vertex Systems GmbH, Plant: Regensburg) Tj
+72 680 Td
+(Customer representative: Quality team, Helios Automotive AG) Tj
+72 666 Td
+(Lead auditor: C. Fischer   Co-auditor: B. Nguyen) Tj
+72 652 Td
+(Audit scope: NOVA BMS module, manufacturing and test processes.) Tj
+72 638 Td
+() Tj
+72 624 Td
+(1. Executive Summary) Tj
+72 610 Td
+(Overall audit result: 87 points out of 100 \(threshold for conditional approval: 85\).) Tj
+72 596 Td
+(Status: CONDITIONALLY APPROVED. Three major findings require corrective action.) Tj
+72 582 Td
+(Re-audit scheduled: 2024-08-15. Supplier must close all major findings before re-audit.) Tj
+72 568 Td
+() Tj
+72 554 Td
+(2. Process Audit Findings) Tj
+72 540 Td
+(Finding QA-F001: MAJOR. Traceability gap in incoming goods inspection.) Tj
+72 526 Td
+(  Observation: 12% of sampled incoming components lacked certificate of conformance.) Tj
+72 512 Td
+(  Required action: Implement 100% CoC check at goods receipt. Due: 2024-06-15.) Tj
+72 498 Td
+(  Reference: VDA 6.3 chapter P4.1.) Tj
+ET
+
+endstream
+endobj
+5 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+6 0 obj
+<< /Length 1314 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+() Tj
+72 736 Td
+(Finding QA-F002: MAJOR. Test equipment calibration records incomplete.) Tj
+72 722 Td
+(  Observation: 2 out of 14 measurement devices lacked current calibration certificate.) Tj
+72 708 Td
+(  Required action: Complete calibration, update calibration management system.) Tj
+72 694 Td
+(  Due: 2024-05-31. Reference: IATF 16949 clause 7.1.5.) Tj
+72 680 Td
+() Tj
+72 666 Td
+(Finding QA-F003: MAJOR. FMEA not updated after design change in Rev 1.1.) Tj
+72 652 Td
+(  Observation: NOVA-FMEA-004 Rev 1.1 changes not reflected in control plan.) Tj
+72 638 Td
+(  Required action: Update control plan to reflect FMEA Rev 1.2. Due: 2024-06-01.) Tj
+72 624 Td
+(  Reference: AIAG-VDA FMEA Handbook, linkage requirement.) Tj
+72 610 Td
+() Tj
+72 596 Td
+(Finding QA-F004: MINOR. Operator training records for SMT line not current.) Tj
+72 582 Td
+(  Observation: 3 operators without documented soldering qualification re-certification.) Tj
+72 568 Td
+(  Required action: Schedule re-certification training. Due: 2024-07-01.) Tj
+72 554 Td
+() Tj
+72 540 Td
+(Finding QA-F005: MINOR. Kanban signal cards not consistently used on line 2.) Tj
+72 526 Td
+(  Observation: Visual management partially implemented.) Tj
+72 512 Td
+(  Required action: Refresh lean training. Due: 2024-07-15.) Tj
+72 498 Td
+() Tj
+ET
+
+endstream
+endobj
+7 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> >> >>
+endobj
+8 0 obj
+<< /Length 1148 >>
+stream
+BT
+/F1 11 Tf
+72 750 Td
+(3. Positive Observations) Tj
+72 736 Td
+(Strong ESD protection measures throughout the production line.) Tj
+72 722 Td
+(Well-documented change management process \(ECR system\).) Tj
+72 708 Td
+(Test coverage greater than 98% functional coverage for BMS firmware tested on HIL bench.) Tj
+72 694 Td
+(5S implementation excellent in test area.) Tj
+72 680 Td
+() Tj
+72 666 Td
+(4. Corrective Action Plan) Tj
+72 652 Td
+(Supplier \(Vertex Systems GmbH\) must submit 8D report for all major findings) Tj
+72 638 Td
+(within 10 business days of this report \(by 2024-05-28\).) Tj
+72 624 Td
+() Tj
+72 610 Td
+(5. Re-audit Plan) Tj
+72 596 Td
+(Re-audit date: 2024-08-15. Focus areas: QA-F001, QA-F002, QA-F003 closure.) Tj
+72 582 Td
+(If findings not closed: escalation to sourcing decision review.) Tj
+72 568 Td
+() Tj
+72 554 Td
+(6. Conclusion) Tj
+72 540 Td
+(Vertex Systems GmbH demonstrates solid technical capability and quality awareness.) Tj
+72 526 Td
+(Conditional approval granted for prototype and pre-production phases of Project NOVA.) Tj
+72 512 Td
+(Serial production approval requires successful re-audit closure.) Tj
+72 498 Td
+() Tj
+ET
+
+endstream
+endobj
+xref
+0 9
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000302 00000 n 
+0000001591 00000 n 
+0000001766 00000 n 
+0000003132 00000 n 
+0000003307 00000 n 
+trailer
+<< /Size 9 /Root 1 0 R >>
+startxref
+4507
+%%EOF

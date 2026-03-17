@@ -1,0 +1,605 @@
+{
+  "scanId": "scan-1773659642940-dd68bf3a",
+  "startedAt": "2026-03-16T11:14:02.953Z",
+  "completedAt": "2026-03-16T11:14:03.163Z",
+  "documentsRoot": "./_test-docs",
+  "metadataQualityScore": {
+    "overall": 70,
+    "components": {
+      "parseSuccessRate": 100,
+      "headingExtractionConfidence": 0,
+      "requirementValidationDelta": 50,
+      "versionPairCalibrationStatus": "uncalibrated",
+      "ocrWarningRate": 0
+    },
+    "interpretation": "Use with caution"
+  },
+  "summary": {
+    "totalFiles": 14,
+    "parsedFiles": 3,
+    "parseFailures": 0,
+    "byExtension": {
+      ".pdf": 11,
+      ".xlsx": 3
+    },
+    "byDocType": {
+      "other": 1,
+      "abweichliste": 2
+    },
+    "byOem": {
+      "unknown": 3
+    },
+    "byLanguage": {
+      "eng": 3
+    },
+    "scannedPdfs": 0,
+    "hybridPdfs": 0,
+    "ocrRequired": 0
+  },
+  "parseHealth": {
+    "failedFiles": []
+  },
+  "folderStructureInference": {
+    "likelyPattern": "unknown",
+    "confidence": 0.3,
+    "customerNames": [],
+    "projectNames": [
+      "InternalDocs",
+      "Helios-Automotive-AG"
+    ]
+  },
+  "files": [
+    {
+      "id": "doc-001",
+      "path": "InternalDocs/Scanned-Drawing-BatteryPack-Housing.pdf",
+      "filename": "Scanned-Drawing-BatteryPack-Housing.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 942,
+      "sha256": "b9fec1f44337a934ea4c060e21abad7c36406402f06b1fd4e93b46e97db79520",
+      "modifiedAt": "2026-03-12T09:59:08.100Z",
+      "depth": 1,
+      "inferredProject": "InternalDocs"
+    },
+    {
+      "id": "doc-002",
+      "path": "InternalDocs/MeetingMinutes-NOVA-DesignReview-2024-07-18.pdf",
+      "filename": "MeetingMinutes-NOVA-DesignReview-2024-07-18.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 4495,
+      "sha256": "5d129b9e80af10b810114097fcd2594bc3d773e331092d812aedc80b696a53b5",
+      "modifiedAt": "2026-03-12T09:59:08.100Z",
+      "depth": 1,
+      "inferredProject": "InternalDocs"
+    },
+    {
+      "id": "doc-003",
+      "path": "Helios-Automotive-AG/Project-TITAN/TITAN-DEV-010-Abweichliste-DE.pdf",
+      "filename": "TITAN-DEV-010-Abweichliste-DE.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 3226,
+      "sha256": "b14f1ed2e2d032bbdf501b2bde5613d465cab261cfdd47ec793fb23b72fafe92",
+      "modifiedAt": "2026-03-12T09:59:08.100Z",
+      "depth": 2,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-004",
+      "path": "Helios-Automotive-AG/Project-TITAN/TITAN-SRS-009-ChassisSpec-DE.pdf",
+      "filename": "TITAN-SRS-009-ChassisSpec-DE.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 4039,
+      "sha256": "4b532eb3d23d590b07c57137fb70e6b1e26c684ec9c6592a7d323156c1df727f",
+      "modifiedAt": "2026-03-12T09:59:08.100Z",
+      "depth": 2,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-005",
+      "path": "Helios-Automotive-AG/Project-NOVA/Quality/NOVA-QA-006-DeviationList.pdf",
+      "filename": "NOVA-QA-006-DeviationList.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 3319,
+      "sha256": "146625cc4214f26aae7b4135decb42c1662eb38d867e6b5e35960bbf865b8a8f",
+      "modifiedAt": "2026-03-12T09:59:08.100Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-006",
+      "path": "Helios-Automotive-AG/Project-NOVA/Quality/NOVA-QA-005-SupplierAuditReport.pdf",
+      "filename": "NOVA-QA-005-SupplierAuditReport.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 4751,
+      "sha256": "79e50234c92b4cd2d43a8f52b86f05fbfeb889af87e164ec67e2ea0bac311a54",
+      "modifiedAt": "2026-03-12T09:59:08.099Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-007",
+      "path": "Helios-Automotive-AG/Project-NOVA/Planning/NOVA-OPEN-009-IssueTracker.xlsx",
+      "filename": "NOVA-OPEN-009-IssueTracker.xlsx",
+      "extension": ".xlsx",
+      "sizeBytes": 7790,
+      "sha256": "d09d2e94417f45cecfce152145482ce735d161865ac3490aea92cda12a988936",
+      "modifiedAt": "2026-03-12T09:59:08.119Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-008",
+      "path": "Helios-Automotive-AG/Project-NOVA/Planning/NOVA-PLAN-007-ProjectMilestones.xlsx",
+      "filename": "NOVA-PLAN-007-ProjectMilestones.xlsx",
+      "extension": ".xlsx",
+      "sizeBytes": 10763,
+      "sha256": "bf22804c5b9a6b196964e97a86fae82deab23f85bd644a9dae8a51a6b3430c92",
+      "modifiedAt": "2026-03-12T09:59:08.113Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-009",
+      "path": "Helios-Automotive-AG/Project-NOVA/Planning/NOVA-PLAN-008-RiskRegister.xlsx",
+      "filename": "NOVA-PLAN-008-RiskRegister.xlsx",
+      "extension": ".xlsx",
+      "sizeBytes": 7895,
+      "sha256": "701a3b4852beff96363f39cf59c1f5ec462884718b1a328c4892c1263e61a7a3",
+      "modifiedAt": "2026-03-12T09:59:08.117Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-010",
+      "path": "Helios-Automotive-AG/Project-NOVA/Requirements/NOVA-SRS-001-SystemRequirements-v2.pdf",
+      "filename": "NOVA-SRS-001-SystemRequirements-v2.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 7061,
+      "sha256": "8a3f693bcb6766495fa16fd1141b4b11faa09b74779928e5949354fcff190f47",
+      "modifiedAt": "2026-03-12T09:59:08.099Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-011",
+      "path": "Helios-Automotive-AG/Project-NOVA/Requirements/NOVA-SRS-001-SystemRequirements-v1.pdf",
+      "filename": "NOVA-SRS-001-SystemRequirements-v1.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 6333,
+      "sha256": "8077a6c3d82cb30f3b3ecabb7e038599a0e7af601268a6c634184489dcd4851f",
+      "modifiedAt": "2026-03-12T09:59:08.099Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-012",
+      "path": "Helios-Automotive-AG/Project-NOVA/Requirements/NOVA-IRS-002-InterfaceRequirements.pdf",
+      "filename": "NOVA-IRS-002-InterfaceRequirements.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 5243,
+      "sha256": "0ad7182ac59ce2eb14363d1cc3b9abc77ad2624fb320d0a1d6083dda43407f26",
+      "modifiedAt": "2026-03-12T09:59:08.099Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-013",
+      "path": "Helios-Automotive-AG/Project-NOVA/Testing/NOVA-FMEA-004-FailureModeAnalysis.pdf",
+      "filename": "NOVA-FMEA-004-FailureModeAnalysis.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 5768,
+      "sha256": "6b8e04b052ab2a85605b88ada5730a60abbc11fac9e2ce4d5d6ce19e9b220667",
+      "modifiedAt": "2026-03-12T09:59:08.099Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    },
+    {
+      "id": "doc-014",
+      "path": "Helios-Automotive-AG/Project-NOVA/Testing/NOVA-TR-003-TestReport-BMS.pdf",
+      "filename": "NOVA-TR-003-TestReport-BMS.pdf",
+      "extension": ".pdf",
+      "sizeBytes": 5001,
+      "sha256": "331bcfbc691702ac7fad896ea22fddb442b6a95f67667570e9e3888b863b645f",
+      "modifiedAt": "2026-03-12T09:59:08.099Z",
+      "depth": 3,
+      "inferredProject": "Helios-Automotive-AG"
+    }
+  ],
+  "parsed": [
+    {
+      "id": "doc-007",
+      "filename": "NOVA-OPEN-009-IssueTracker.xlsx",
+      "charCount": 1163,
+      "tokenCountEstimate": 277,
+      "language": "eng",
+      "headingCount": 0,
+      "headings": [],
+      "hasNumberedHeadings": false,
+      "tableCount": 0,
+      "parserUsed": "officeparser",
+      "isScannedPdf": false,
+      "isOcrRequired": false,
+      "pdfClassification": "not_pdf",
+      "parseSuccess": true,
+      "dateSource": "mtime",
+      "dateSignals": {
+        "mtime": "2026-03-12",
+        "ctime": "2026-03-12",
+        "mtimeReliable": false,
+        "bestDate": "2026-03-12"
+      },
+      "requirementQuality": {
+        "confirmed": 1,
+        "negated": 0,
+        "uncertain": 0,
+        "raw": 1
+      },
+      "recommendedChunkStrategy": "table_rows",
+      "chunkStrategyReasoning": {
+        "recommended": "table_rows",
+        "confidence": 0.95,
+        "signals": {
+          "headingCount": 0,
+          "headingDepth": 0,
+          "avgTokensPerSection": 0,
+          "tableCount": 0,
+          "hasNestedHeadings": false,
+          "isXlsx": true,
+          "pdfClassification": "not_pdf"
+        }
+      },
+      "requirementMetadataReliable": false,
+      "detectedOem": "unknown",
+      "detectedDocType": "other"
+    },
+    {
+      "id": "doc-008",
+      "filename": "NOVA-PLAN-007-ProjectMilestones.xlsx",
+      "charCount": 1683,
+      "tokenCountEstimate": 401,
+      "language": "eng",
+      "headingCount": 0,
+      "headings": [],
+      "hasNumberedHeadings": false,
+      "tableCount": 0,
+      "parserUsed": "officeparser",
+      "isScannedPdf": false,
+      "isOcrRequired": false,
+      "pdfClassification": "not_pdf",
+      "parseSuccess": true,
+      "dateSource": "mtime",
+      "dateSignals": {
+        "mtime": "2026-03-12",
+        "ctime": "2026-03-12",
+        "mtimeReliable": false,
+        "bestDate": "2026-03-12"
+      },
+      "requirementQuality": {
+        "confirmed": 0,
+        "negated": 0,
+        "uncertain": 0,
+        "raw": 0
+      },
+      "recommendedChunkStrategy": "table_rows",
+      "chunkStrategyReasoning": {
+        "recommended": "table_rows",
+        "confidence": 0.95,
+        "signals": {
+          "headingCount": 0,
+          "headingDepth": 0,
+          "avgTokensPerSection": 0,
+          "tableCount": 0,
+          "hasNestedHeadings": false,
+          "isXlsx": true,
+          "pdfClassification": "not_pdf"
+        }
+      },
+      "requirementMetadataReliable": false,
+      "detectedOem": "unknown",
+      "detectedDocType": "abweichliste"
+    },
+    {
+      "id": "doc-009",
+      "filename": "NOVA-PLAN-008-RiskRegister.xlsx",
+      "charCount": 1266,
+      "tokenCountEstimate": 302,
+      "language": "eng",
+      "headingCount": 0,
+      "headings": [],
+      "hasNumberedHeadings": false,
+      "tableCount": 0,
+      "parserUsed": "officeparser",
+      "isScannedPdf": false,
+      "isOcrRequired": false,
+      "pdfClassification": "not_pdf",
+      "parseSuccess": true,
+      "dateSource": "mtime",
+      "dateSignals": {
+        "mtime": "2026-03-12",
+        "ctime": "2026-03-12",
+        "mtimeReliable": false,
+        "bestDate": "2026-03-12"
+      },
+      "requirementQuality": {
+        "confirmed": 1,
+        "negated": 0,
+        "uncertain": 0,
+        "raw": 1
+      },
+      "recommendedChunkStrategy": "table_rows",
+      "chunkStrategyReasoning": {
+        "recommended": "table_rows",
+        "confidence": 0.95,
+        "signals": {
+          "headingCount": 0,
+          "headingDepth": 0,
+          "avgTokensPerSection": 0,
+          "tableCount": 0,
+          "hasNestedHeadings": false,
+          "isXlsx": true,
+          "pdfClassification": "not_pdf"
+        }
+      },
+      "requirementMetadataReliable": false,
+      "detectedOem": "unknown",
+      "detectedDocType": "abweichliste"
+    }
+  ],
+  "versionPairScoreHistogram": {
+    "10-12": 0,
+    "7-9": 0,
+    "5-6": 3,
+    "3-4": 0,
+    "0-2": 0
+  },
+  "fingerprints": [
+    {
+      "docId": "doc-007",
+      "structural": {
+        "h1Count": 0,
+        "h2Count": 0,
+        "h3Count": 0,
+        "h4PlusCount": 0,
+        "tableCount": 0,
+        "pageCount": 0,
+        "tokenCountEstimate": 277,
+        "hasNumberedHeadings": false
+      },
+      "requirementDensity": {
+        "mussPerPage": 0,
+        "sollPerPage": 0,
+        "kannPerPage": 1,
+        "informativPerPage": 198,
+        "quantitativeValuesPerPage": 0,
+        "fikbReferencesPerPage": 0
+      },
+      "hasSemanticEmbedding": false
+    },
+    {
+      "docId": "doc-008",
+      "structural": {
+        "h1Count": 0,
+        "h2Count": 0,
+        "h3Count": 0,
+        "h4PlusCount": 0,
+        "tableCount": 0,
+        "pageCount": 0,
+        "tokenCountEstimate": 401,
+        "hasNumberedHeadings": false
+      },
+      "requirementDensity": {
+        "mussPerPage": 0,
+        "sollPerPage": 0,
+        "kannPerPage": 0,
+        "informativPerPage": 272,
+        "quantitativeValuesPerPage": 0,
+        "fikbReferencesPerPage": 0
+      },
+      "hasSemanticEmbedding": false
+    },
+    {
+      "docId": "doc-009",
+      "structural": {
+        "h1Count": 0,
+        "h2Count": 0,
+        "h3Count": 0,
+        "h4PlusCount": 0,
+        "tableCount": 0,
+        "pageCount": 0,
+        "tokenCountEstimate": 302,
+        "hasNumberedHeadings": false
+      },
+      "requirementDensity": {
+        "mussPerPage": 0,
+        "sollPerPage": 0,
+        "kannPerPage": 1,
+        "informativPerPage": 198,
+        "quantitativeValuesPerPage": 0,
+        "fikbReferencesPerPage": 0
+      },
+      "hasSemanticEmbedding": false
+    }
+  ],
+  "versionPairs": [
+    {
+      "docA": "doc-007",
+      "docB": "doc-008",
+      "signals": {
+        "filenameNormalizedSimilarity": 0.07142857142857142,
+        "structuralMatch": true,
+        "headingMinHashJaccard": 1,
+        "semanticCosineSimilarity": 0,
+        "sameDirectory": true,
+        "modifiedDateDeltaDays": 0
+      },
+      "score": 6,
+      "confidence": "MEDIUM",
+      "likelyNewer": "UNKNOWN"
+    },
+    {
+      "docA": "doc-007",
+      "docB": "doc-009",
+      "signals": {
+        "filenameNormalizedSimilarity": 0.08108108108108109,
+        "structuralMatch": true,
+        "headingMinHashJaccard": 1,
+        "semanticCosineSimilarity": 0,
+        "sameDirectory": true,
+        "modifiedDateDeltaDays": 0
+      },
+      "score": 6,
+      "confidence": "MEDIUM",
+      "likelyNewer": "UNKNOWN"
+    },
+    {
+      "docA": "doc-008",
+      "docB": "doc-009",
+      "signals": {
+        "filenameNormalizedSimilarity": 0.21621621621621623,
+        "structuralMatch": true,
+        "headingMinHashJaccard": 1,
+        "semanticCosineSimilarity": 0,
+        "sameDirectory": true,
+        "modifiedDateDeltaDays": 0
+      },
+      "score": 6,
+      "confidence": "MEDIUM",
+      "likelyNewer": "UNKNOWN"
+    }
+  ],
+  "versionChains": [],
+  "references": [
+    {
+      "docId": "doc-007",
+      "type": "iso_norm",
+      "rawText": "ISO 21434",
+      "sectionContext": "unknown",
+      "resolutionMethod": "external_norm"
+    },
+    {
+      "docId": "doc-008",
+      "type": "iso_norm",
+      "rawText": "ISO 21434",
+      "sectionContext": "unknown",
+      "resolutionMethod": "external_norm"
+    },
+    {
+      "docId": "doc-009",
+      "type": "iso_norm",
+      "rawText": "ISO 21434",
+      "sectionContext": "unknown",
+      "resolutionMethod": "external_norm"
+    }
+  ],
+  "referenceGraph": {
+    "doc-007": [],
+    "doc-008": [],
+    "doc-009": []
+  },
+  "requirements": [],
+  "llmValidation": {
+    "sampledDocIds": [],
+    "regexVsLlmDelta": 0,
+    "confidenceInterval": {
+      "lower": 0,
+      "upper": 0
+    }
+  },
+  "consistencyChecks": [
+    {
+      "checkName": "tokenSumVsFullDoc",
+      "passed": true,
+      "value": 0,
+      "threshold": 0.15,
+      "severity": "INFO",
+      "interpretation": "3 XLSX/tabular document(s) skipped — heading token sum not applicable, use table_rows chunking strategy"
+    },
+    {
+      "checkName": "versionPairSymmetry",
+      "passed": true,
+      "value": 0,
+      "threshold": 0,
+      "severity": "INFO",
+      "interpretation": "Version pair detection is symmetric"
+    },
+    {
+      "checkName": "referenceResolutionRate",
+      "passed": true,
+      "value": 1,
+      "threshold": 0.4,
+      "severity": "INFO",
+      "interpretation": "No internal cross-references found (3 external norm refs excluded from rate)"
+    },
+    {
+      "checkName": "requirementDensityRange",
+      "passed": true,
+      "value": 0,
+      "threshold": 15,
+      "severity": "INFO",
+      "interpretation": "Requirement density is within expected ranges for all documents"
+    },
+    {
+      "checkName": "parserDivergenceRate",
+      "passed": true,
+      "value": 0,
+      "threshold": 0.3,
+      "severity": "INFO",
+      "interpretation": "0% major parser divergence in Office files — acceptable"
+    },
+    {
+      "checkName": "scannedPdfRate",
+      "passed": true,
+      "value": 0,
+      "threshold": 0,
+      "severity": "INFO",
+      "interpretation": "All 0 PDFs are native (scannedPageRatio ≤10% per doc)"
+    },
+    {
+      "checkName": "oemConsistency",
+      "passed": true,
+      "value": 0,
+      "threshold": 0,
+      "severity": "INFO",
+      "interpretation": "Each project folder contains documents from a single OEM"
+    },
+    {
+      "checkName": "languageMixRate",
+      "passed": true,
+      "value": 1,
+      "threshold": 0.3,
+      "severity": "INFO",
+      "interpretation": "100% of documents have non-German primary language — consider bilingual chunking strategy in RAG pipeline"
+    },
+    {
+      "checkName": "parseSuccessRate",
+      "passed": true,
+      "value": 1,
+      "threshold": 0.85,
+      "severity": "INFO",
+      "interpretation": "100% parse success rate (3/3 docs with charCount > 100)"
+    },
+    {
+      "checkName": "chunkStrategyConfidence",
+      "passed": true,
+      "value": 0,
+      "threshold": 0,
+      "severity": "INFO",
+      "interpretation": "All heading_sections recommendations have adequate confidence"
+    },
+    {
+      "checkName": "oemSourceConflict",
+      "passed": true,
+      "value": 0,
+      "threshold": 0,
+      "severity": "INFO",
+      "interpretation": "No OEM signal conflicts between folder and document-internal detection"
+    },
+    {
+      "checkName": "actionabilityMatrix",
+      "passed": true,
+      "value": 0,
+      "threshold": 0,
+      "severity": "INFO",
+      "interpretation": "Scan results are actionable — sufficient signal quality for RAG architecture decisions"
+    }
+  ]
+}
