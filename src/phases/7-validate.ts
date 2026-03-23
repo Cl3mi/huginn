@@ -27,8 +27,34 @@ export async function runValidate(state: ScannerState): Promise<void> {
   const t = logger.phaseStart("7-validate");
   const checks: ConsistencyCheck[] = [];
 
-  // 1. sectionSizeEstimate — detect oversized sections that chunk poorly with heading_sections strategy
-  // avg body size = tokenCountEstimate / headingCount; flag if >5000 tokens/section (INFO only)
+  // 0. CORPUS_EMPTY — all downstream metrics are meaningless
+  if (state.parsed.length === 0) {
+    checks.push({
+      checkName: "CORPUS_EMPTY",
+      passed: false,
+      value: 0,
+      threshold: 1,
+      severity: "CRITICAL",
+      interpretation: "No documents were parsed — DOCUMENTS_ROOT may be wrong or contain no supported file types. All downstream metrics are unreliable.",
+    });
+    state.consistencyChecks = checks;
+    logger.phaseEnd("7-validate", t, { totalChecks: 1, critical: 1, warnings: 0, passed: 0 });
+    return;
+  }
+
+  // 0b. CORPUS_TOO_SMALL — version pair and LLM validation stats not meaningful below 5 docs
+  if (state.parsed.length < 5) {
+    checks.push({
+      checkName: "CORPUS_TOO_SMALL",
+      passed: false,
+      value: state.parsed.length,
+      threshold: 5,
+      severity: "WARNING",
+      interpretation: `Only ${state.parsed.length} doc(s) parsed — version pair scores and LLM validation statistics are not meaningful with fewer than 5 documents.`,
+    });
+  }
+
+  // 1. sectionSizeEstimate — avg tokens/section >5000 chunks poorly with heading_sections strategy
   const largeSectionDocs: Array<{ id: string; filename: string }> = [];
   for (const doc of state.parsed) {
     if (doc.headings.length === 0 || doc.tokenCountEstimate === 0) continue;
@@ -144,9 +170,8 @@ export async function runValidate(state: ScannerState): Promise<void> {
       : `${(divergenceRate * 100).toFixed(0)}% major parser divergence in Office files — acceptable`,
   });
 
-  // 6. scannedPdfRate — GAP-02: use per-doc scannedPageRatio for graduated thresholds
-  // CRITICAL: doc needs full OCR (>50% of pages are image-only)
-  // WARNING:  doc needs partial OCR (>10% but ≤50% of pages are image-only)
+  // 6. scannedPdfRate — graduated by per-doc scannedPageRatio
+  // CRITICAL: >50% pages image-only; WARNING: >10% pages image-only
   const pdfs = state.parsed.filter((d) => d.extension === ".pdf");
   const fullOcrDocs = pdfs.filter((d) => (d.scannedPageRatio ?? 0) > 0.5);
   const partialOcrDocs = pdfs.filter((d) => {
@@ -199,7 +224,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
   const langMixRate = state.parsed.length > 0 ? nonGerman / state.parsed.length : 0;
   checks.push({
     checkName: "languageMixRate",
-    passed: true, // always passes — INFO only
+    passed: true,
     value: langMixRate,
     threshold: 0.30,
     severity: langMixRate > 0.30 ? "INFO" : "INFO",
@@ -236,7 +261,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
     });
   }
 
-  // 10. LLM validation delta check (existing)
+  // 10. llmValidationDelta
   if (state.llmValidation.sampledDocIds.length > 0) {
     const delta = state.llmValidation.regexVsLlmDelta;
     checks.push({
@@ -251,7 +276,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
     });
   }
 
-  // 11. IMP-02: parseSuccessRate — detect silent parse failures (password-protected, corrupt, empty)
+  // 11. parseSuccessRate — detects silent parse failures (password-protected, corrupt, empty)
   const totalParsed = state.parsed.length;
   const successfullyParsed = state.parsed.filter((d) => d.parseSuccess).length;
   const parseSuccessRate = totalParsed > 0 ? successfullyParsed / totalParsed : 1;
@@ -291,8 +316,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
       : "All heading_sections recommendations have adequate confidence"),
   });
 
-  // 13. oemSourceConflict — GAP-06: flag docs where folder and document-internal OEM signals disagree
-  // (runs before actionabilityMatrix so its result feeds into the final check)
+  // 13. oemSourceConflict — folder vs document-internal OEM signals disagree
   const reconciledDocs = state.parsed.filter((d) => d.oemSource === "reconciled");
   checks.push({
     checkName: "oemSourceConflict",
@@ -305,7 +329,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
       : "No OEM signal conflicts between folder and document-internal detection"),
   });
 
-  // 14. uniformTimestamps — P2: all docs share identical mtime (NTFS/SMB copy artifact)
+  // 14. uniformTimestamps — all docs share identical mtime (NTFS/SMB copy artifact)
   if (state.parsed.length >= 5) {
     const mtimes = new Set(state.parsed.map((d) => d.dateSignals.mtime));
     if (mtimes.size === 1) {
@@ -329,7 +353,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
     }
   }
 
-  // 15. actionabilityMatrix — GAP-11: overall signal reliability for RAG architecture decisions
+  // 15. actionabilityMatrix — overall signal reliability for RAG architecture decisions
   const criticalFailed = checks.filter((c) => !c.passed && c.severity === "CRITICAL").length;
   const warningFailed = checks.filter((c) => !c.passed && c.severity === "WARNING").length;
   const parseSuccessEntry = checks.find((c) => c.checkName === "parseSuccessRate");
@@ -351,7 +375,6 @@ export async function runValidate(state: ScannerState): Promise<void> {
         : `${warningFailed} warnings — review flagged items before finalizing RAG architecture`),
   });
 
-  // Clamp all interpretation strings to pass the content-leak guard
   state.consistencyChecks = checks.map((c) => ({
     ...c,
     interpretation: clamp(c.interpretation),

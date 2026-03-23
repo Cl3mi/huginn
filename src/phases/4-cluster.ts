@@ -6,9 +6,9 @@ import { jaccardFromMinHash, cosineSimilarity } from "../utils/minhash.ts";
 function normalizeFilename(filename: string): string {
   return filename
     .toLowerCase()
-    .replace(/\.[^.]+$/, "")      // remove extension
-    .replace(/[_\-.\s]+/g, " ")   // normalize separators
-    .replace(/v?\d+(\.\d+)*/, "") // remove version numbers
+    .replace(/\.[^.]+$/, "")
+    .replace(/[_\-.\s]+/g, " ")
+    .replace(/v?\d+(\.\d+)*/, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -38,11 +38,13 @@ function structuralMatch(fpA: DocumentFingerprint, fpB: DocumentFingerprint): bo
   const b = fpB.structural;
   if (a.hasNumberedHeadings !== b.hasNumberedHeadings) return false;
 
-  // Heading counts must be within 40% of each other
-  const h1ratio = safeDivRatio(a.h1Count, b.h1Count);
-  const h2ratio = safeDivRatio(a.h2Count, b.h2Count);
+  // zero-heading docs have no structure to compare — never match
   const totalA = a.h1Count + a.h2Count + a.h3Count + a.h4PlusCount;
   const totalB = b.h1Count + b.h2Count + b.h3Count + b.h4PlusCount;
+  if (totalA === 0 || totalB === 0) return false;
+
+  // Heading counts must be within 40% of each other
+  const h2ratio = safeDivRatio(a.h2Count, b.h2Count);
   const totalRatio = safeDivRatio(totalA, totalB);
 
   return h2ratio >= 0.6 && totalRatio >= 0.6;
@@ -89,11 +91,11 @@ function scoreVersionPair(
   score += mhJaccard >= 0.7 ? 3 : mhJaccard >= 0.4 ? 2 : mhJaccard >= 0.2 ? 1 : 0; // minhash: 0-3
   score += semanticSim >= 0.85 ? 3 : semanticSim >= 0.7 ? 2 : semanticSim >= 0.5 ? 1 : 0; // semantic: 0-3
   score += samedir ? 1 : 0;                                           // same dir: 0-1
-  // IMP-09: date delta contributes 0 points if both docs rely on unreliable mtime
+  // date delta contributes 0 points if both docs rely on unreliable mtime
   const dateBothMtime = docA.dateSource === "mtime" && docB.dateSource === "mtime";
   score += !dateBothMtime && deltaDays <= 365 ? 1 : 0;              // date delta: 0-1
 
-  // IMP-03: Template reuse penalty — same type + same OEM + disjoint FIKB sets → -3
+  // template reuse penalty: same type + same OEM + disjoint FIKB sets → -3
   let versionPairFlag: VersionPair["versionPairFlag"];
   const sameDocType = docA.detectedDocType && docB.detectedDocType && docA.detectedDocType === docB.detectedDocType;
   const sameOem = docA.detectedOem && docB.detectedOem && docA.detectedOem === docB.detectedOem && docA.detectedOem !== "unknown";
@@ -110,7 +112,6 @@ function scoreVersionPair(
   else if (score >= 3) confidence = "LOW";
   else confidence = "NOT_A_PAIR";
 
-  // Determine which is likely newer
   let likelyNewer: VersionPair["likelyNewer"] = "UNKNOWN";
   if (!dateBothMtime && deltaDays > 1) {
     likelyNewer = new Date(docA.dateSignals.bestDate) > new Date(docB.dateSignals.bestDate) ? "A" : "B";
@@ -140,7 +141,6 @@ function scoreVersionPair(
 }
 
 function buildVersionChains(pairs: VersionPair[], docs: ParsedDocument[]): string[][] {
-  // Build adjacency from HIGH confidence pairs
   const adj = new Map<string, Set<string>>();
   for (const pair of pairs) {
     if (pair.confidence !== "HIGH") continue;
@@ -170,11 +170,15 @@ function buildVersionChains(pairs: VersionPair[], docs: ParsedDocument[]): strin
 
     if (component.length > 1) {
       // Sort by modified date (ascending = oldest first)
+        // guard against NaN from invalid date strings
       const sorted = component.sort((a, b) => {
         const docA = docs.find((d) => d.id === a);
         const docB = docs.find((d) => d.id === b);
         if (!docA || !docB) return 0;
-        return new Date(docA.dateSignals.bestDate).getTime() - new Date(docB.dateSignals.bestDate).getTime();
+        const timeA = new Date(docA.dateSignals.bestDate).getTime();
+        const timeB = new Date(docB.dateSignals.bestDate).getTime();
+        if (isNaN(timeA) || isNaN(timeB)) return 0;
+        return timeA - timeB;
       });
       chains.push(sorted);
     }
@@ -186,12 +190,11 @@ function buildVersionChains(pairs: VersionPair[], docs: ParsedDocument[]): strin
 export async function runCluster(state: ScannerState): Promise<void> {
   const t = logger.phaseStart("4-cluster");
 
-  // P0: exclude empty/failed docs — they produce spurious HIGH pairs via matching zero-valued fingerprints
+  // exclude empty/failed docs — zero-valued fingerprints produce spurious HIGH pairs
   const docs = state.parsed.filter((d) => d.parseSuccess && d.charCount >= 200);
   const fps = state.fingerprints;
   const n = docs.length;
 
-  // IMP-03: Pre-compute per-doc FIKB/KB_Master ID sets for disjoint penalty
   const docFikbSets = new Map<string, Set<string>>();
   for (const ref of state.references) {
     if (ref.type === "fikb" || ref.type === "kb_master") {

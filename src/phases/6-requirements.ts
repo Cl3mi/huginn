@@ -1,19 +1,12 @@
-import { readFile } from "fs/promises";
 import type { ScannerState, ExtractedRequirement, ParsedDocument } from "../state.ts";
+import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
-import { complete, parseJsonFromLlm } from "../llm/ollama.ts";
-import { requirementValidationPrompt } from "../llm/prompts.ts";
-import { truncateToTokens } from "../utils/tokenizer.ts";
+import { complete } from "../llm/ollama.ts";
+import { requirementValidationPrompt, type SectionSignals } from "../llm/prompts.ts";
 
 type RequirementType = ExtractedRequirement["type"];
 type RequirementCategory = ExtractedRequirement["category"];
-
-interface LlmRequirement {
-  type: RequirementType;
-  category: RequirementCategory;
-  has_quantitative_value: boolean;
-}
 
 function classifyType(text: string): RequirementType {
   if (PATTERNS.muss.test(text)) { PATTERNS.muss.lastIndex = 0; return "MUSS"; }
@@ -22,7 +15,7 @@ function classifyType(text: string): RequirementType {
   PATTERNS.soll.lastIndex = 0;
   if (PATTERNS.kann.test(text)) { PATTERNS.kann.lastIndex = 0; return "KANN"; }
   PATTERNS.kann.lastIndex = 0;
-  // GAP-01: Declarative requirements — numeric specs without modal verbs
+  // Declarative requirements — numeric specs without modal verbs
   if (PATTERNS.declarative.test(text)) { PATTERNS.declarative.lastIndex = 0; return "DEKLARATIV"; }
   PATTERNS.declarative.lastIndex = 0;
   return "INFORMATIV";
@@ -51,10 +44,15 @@ function isSafetyRelevant(text: string): boolean {
   return result;
 }
 
-function extractQuantitativeValueSummary(text: string): string | undefined {
+// PRIVACY: Extract count + unit tokens only — never store spec values.
+function extractQuantitativeValueInfo(text: string): { count: number; unitTypes: string[] } | undefined {
   const matches = findAllMatches(PATTERNS.quantitativeValue, text);
   if (matches.length === 0) return undefined;
-  return matches.slice(0, 3).join(", ").slice(0, 60); // hard cap
+  const units = matches.map((m) => {
+    const u = m.match(/[a-zA-Z°%µ]+/);
+    return u ? u[0]! : "?";
+  });
+  return { count: matches.length, unitTypes: [...new Set(units)].slice(0, 5) };
 }
 
 function extractLinkedFikb(text: string): string | undefined {
@@ -64,14 +62,13 @@ function extractLinkedFikb(text: string): string | undefined {
   return all.length > 0 ? all[0]!.slice(0, 30) : undefined;
 }
 
-// IMP-07: Requirement pre-filters result
 interface RequirementFilterResult {
   confirmed: boolean;
   negated: boolean;
   uncertain: boolean;
 }
 
-// IMP-07: Three pre-filters that a sentence must pass to be counted as a confirmed requirement
+// Three pre-filters a sentence must pass to count as a confirmed requirement
 function applyRequirementFilters(sentence: string): RequirementFilterResult {
   // Filter 1 — Negation exclusion
   const negated = /nicht\s+muss|muss\s+nicht|nicht\s+soll|soll\s+nicht/i.test(sentence);
@@ -79,9 +76,8 @@ function applyRequirementFilters(sentence: string): RequirementFilterResult {
 
   // Filter 2 — Subject plausibility: needs a subject noun, technical abbreviation, or compound noun
   const hasGermanSubject = /^(?:Die|Das|Der|Ein|Eine|Alle|Jede[rs]?)\s+[A-ZÄÖÜ]/.test(sentence.trim());
-  // P1: English articles + lowercase noun
   const hasEnglishSubject = /^(?:The|A|An|All|Each|Every)\s+[a-zA-Z]/.test(sentence.trim());
-  // P1: Capital start + requirement verb — handles "Supplier shall...", "BMS must..."
+  // handles "Supplier shall...", "BMS must..."
   const startsCapitalWithReqVerb = /^[A-Z].*\b(?:shall|must|should)\b/.test(sentence.trim());
   const hasTechnicalAbbrev = /[A-Z]{2,}/.test(sentence);
   const hasNounCompound = /[A-Z][a-z]+[A-Z][a-z]+/.test(sentence);
@@ -97,7 +93,6 @@ function applyRequirementFilters(sentence: string): RequirementFilterResult {
   return { confirmed: true, negated: false, uncertain: false };
 }
 
-// Split text into sections by headings
 interface Section {
   heading: string;
   text: string;
@@ -130,67 +125,71 @@ function splitIntoSections(doc: ParsedDocument, fullText: string): Section[] {
   return sections;
 }
 
-// IMP-04: LLM validation with stratified sampling and per-doc-type stats
+// Compute structural signals from section text — these are the ONLY values passed to the LLM.
+// The text itself is consumed here and never forwarded to any external service.
+function computeSectionSignals(text: string): SectionSignals {
+  const wordCount = text.trim().split(/\s+/).filter((w) => w.length > 0).length;
+  const modalMatches = text.match(/\b(?:muss|müssen|soll|sollen|kann|können|shall|must|should)\b/gi) ?? [];
+  const modalVerbCount = modalMatches.length;
+  const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim().length > 0);
+  const sentenceCount = Math.max(1, sentences.length);
+  // Inline pattern — avoids global regex lastIndex state from PATTERNS
+  const hasQuantitativeValues = /\d+[,.]?\d*\s*(?:mm|cm|m\b|kg|g\b|°C|K\b|N\b|MPa|kN|%|bar|kPa|µm)/i.test(text);
+  return { wordCount, modalVerbCount, sentenceCount, hasQuantitativeValues, regexCount: 1 };
+}
+
+// PRIVACY: only pre-computed structural signals permitted — never document text
 async function validateWithLlm(
-  sampledSections: Array<{ docId: string; docType: string; heading: string; text: string }>,
-  regexCountsByDoc: Map<string, number>
+  sampledSections: Array<{ docId: string; docType: string; heading: string; signals: SectionSignals }>
 ): Promise<{
   regexVsLlmDelta: number;
   confidenceInterval: { lower: number; upper: number };
   sampledDocIds: string[];
   byDocumentType: Record<string, { sampled: number; avgDelta: number }>;
-  llmRecoveredCount: number;
-  llmRejectedCount: number;
+  llmRecoveredCount?: number;
+  llmRejectedCount?: number;
 }> {
-  let totalRegex = 0;
-  let totalLlm = 0;
+  let plausibleCount = 0;
+  let lowCount = 0;    // LLM says regex undercounts → regex missed requirements
+  let highCount = 0;   // LLM says regex overcounts → likely false positives
   const sampledDocIds: string[] = [];
-  // Per doc-type tracking
-  const typeStats = new Map<string, { regex: number; llm: number; count: number }>();
+  const typeStats = new Map<string, { agree: number; disagree: number; count: number }>();
 
-  for (const { docId, docType, heading, text } of sampledSections) {
+  for (const { docId, docType, heading, signals } of sampledSections) {
     sampledDocIds.push(docId);
-    const truncated = truncateToTokens(text, 800);
 
-    let llmCount = 0;
+    let verdict = "PLAUSIBLE";
     try {
-      const prompt = requirementValidationPrompt(truncated);
-      const response = await complete(prompt, { temperature: 0.0, maxTokens: 1000 });
-      const items = parseJsonFromLlm<LlmRequirement[]>(response);
-      llmCount = Array.isArray(items) ? items.length : 0;
+      const prompt = requirementValidationPrompt(signals);
+      const response = await complete(prompt, { temperature: 0.0, maxTokens: 10 });
+      verdict = response.trim().toUpperCase().split(/\s+/)[0] ?? "PLAUSIBLE";
     } catch (e) {
       logger.warn("LLM validation failed for section", { docId, heading, error: String(e) });
       continue;
     }
 
-    const regexCount = regexCountsByDoc.get(docId) ?? 0;
-    totalRegex += regexCount;
-    totalLlm += llmCount;
+    if (verdict.startsWith("LOW")) { lowCount++; }
+    else if (verdict.startsWith("HIGH")) { highCount++; }
+    else { plausibleCount++; }
 
-    if (!typeStats.has(docType)) typeStats.set(docType, { regex: 0, llm: 0, count: 0 });
+    if (!typeStats.has(docType)) typeStats.set(docType, { agree: 0, disagree: 0, count: 0 });
     const ts = typeStats.get(docType)!;
-    ts.regex += regexCount;
-    ts.llm += llmCount;
     ts.count++;
+    if (verdict.startsWith("PLAUSIBLE")) ts.agree++; else ts.disagree++;
   }
 
-  const delta = totalRegex + totalLlm > 0
-    ? Math.abs(totalRegex - totalLlm) / Math.max(totalRegex, totalLlm)
-    : 0;
+  const total = plausibleCount + lowCount + highCount;
+  const delta = total > 0 ? (lowCount + highCount) / total : 0;
 
   const n = sampledSections.length;
   const margin = n > 0 ? 1.96 * Math.sqrt((delta * (1 - delta)) / n) : 0.5;
 
   const byDocumentType: Record<string, { sampled: number; avgDelta: number }> = {};
-  for (const [type, { regex, llm, count }] of typeStats) {
-    const typeDelta = regex + llm > 0 ? Math.abs(regex - llm) / Math.max(regex, llm) : 0;
-    byDocumentType[type] = { sampled: count, avgDelta: typeDelta };
+  for (const [type, { disagree, count }] of typeStats) {
+    byDocumentType[type] = { sampled: count, avgDelta: count > 0 ? disagree / count : 0 };
   }
 
-  // GAP-09: Aggregate recovery/rejection counts
-  const llmRecoveredCount = Math.max(0, totalLlm - totalRegex);
-  const llmRejectedCount = Math.max(0, totalRegex - totalLlm);
-
+  // LOW = LLM finds more requirements than regex; HIGH = LLM rejects regex counts
   return {
     regexVsLlmDelta: delta,
     confidenceInterval: {
@@ -199,26 +198,19 @@ async function validateWithLlm(
     },
     sampledDocIds: [...new Set(sampledDocIds)],
     byDocumentType,
-    llmRecoveredCount,
-    llmRejectedCount,
+    ...(lowCount > 0 ? { llmRecoveredCount: lowCount } : {}),
+    ...(highCount > 0 ? { llmRejectedCount: highCount } : {}),
   };
 }
 
 export async function runRequirements(state: ScannerState, ollamaAvailable: boolean): Promise<void> {
   const t = logger.phaseStart("6-requirements");
 
-  const regexCountsByDoc = new Map<string, number>();
-  // IMP-04: Stratified sample pool — keyed by docType
-  const samplePoolByType = new Map<string, Array<{ docId: string; docType: string; heading: string; text: string }>>();
+  const samplePoolByType = new Map<string, Array<{ docId: string; docType: string; heading: string; signals: SectionSignals }>>();
 
   for (const doc of state.parsed) {
-    let fullText = "";
-    try {
-      const buf = await readFile(doc.absolutePath);
-      fullText = buf.toString("utf-8", 0, Math.min(buf.length, 2_000_000));
-    } catch {
-      continue;
-    }
+    const fullText = doc.textContent ?? "";
+    if (!fullText) continue;
 
     const sections = splitIntoSections(doc, fullText);
     let rawCount = 0;
@@ -229,16 +221,13 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
 
     for (const section of sections) {
       const type = classifyType(section.text);
-      if (type === "INFORMATIV") continue; // INFORMATIV sections skipped from requirement counting
+      if (type === "INFORMATIV") continue;
 
       rawCount++;
 
-      // IMP-07: Apply three pre-filters per sentence
-      // Split section into sentences and find requirement-triggering sentence
       const sentences = section.text.split(/(?<=[.!?])\s+|(?<=[.!?])$/);
       let reqSentence: string;
       if (type === "DEKLARATIV") {
-        // GAP-01: find sentence with declarative verb (no modal verb present)
         reqSentence = sentences.find((s) => {
           const result = PATTERNS.declarative.test(s.trim());
           PATTERNS.declarative.lastIndex = 0;
@@ -264,9 +253,8 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
       if (!doc.requirementMetadataReliable) continue;
       const category = classifyCategory(section.text);
       const safety = isSafetyRelevant(section.text);
-      const quantMatches = findAllMatches(PATTERNS.quantitativeValue, section.text);
-      const hasQuantitative = quantMatches.length > 0;
-      const quantSummary = extractQuantitativeValueSummary(section.text);
+      const quantInfo = extractQuantitativeValueInfo(section.text);
+      const hasQuantitative = (quantInfo?.count ?? 0) > 0;
       const linkedFikb = extractLinkedFikb(section.text);
       const normMatches = findAllMatches(PATTERNS.norm, section.text);
       const linkedNorm = normMatches[0]?.slice(0, 30);
@@ -277,34 +265,31 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
         type,
         category,
         hasQuantitativeValue: hasQuantitative,
-        ...(quantSummary ? { quantitativeValueSummary: quantSummary } : {}),
+        ...(quantInfo ? { quantitativeValueCount: quantInfo.count, quantitativeUnitTypes: quantInfo.unitTypes } : {}),
         ...(linkedNorm ? { linkedNorm } : {}),
         ...(linkedFikb ? { linkedFikb } : {}),
         isSafetyRelevant: safety,
-        source: "regex" as const, // GAP-09: track origin of requirement
+        source: "regex" as const,
       });
 
-      // Collect samples for LLM validation
       if (section.text.length > 200) {
         if (!samplePoolByType.has(docType)) samplePoolByType.set(docType, []);
         const pool = samplePoolByType.get(docType)!;
         if (pool.length < 50) { // cap per type
-          pool.push({ docId: doc.id, docType, heading: section.heading, text: section.text });
+          const sectionSignals = computeSectionSignals(section.text);
+          pool.push({ docId: doc.id, docType, heading: section.heading, signals: sectionSignals });
         }
       }
     }
 
-    regexCountsByDoc.set(doc.id, rawCount);
-
-    // IMP-07: Store requirement quality counters on the doc
     doc.requirementQuality = { confirmed: confirmedCount, negated: negatedCount, uncertain: uncertainCount, raw: rawCount };
   }
 
-  // IMP-04: Stratified sampling — min(2, count_in_bucket) per type, total = max(10%, sum of mins)
+  // stratified sampling: min(2, bucket_size) per type, total ≥ llmSampleRate of pool
   if (ollamaAvailable && samplePoolByType.size > 0) {
-    const stratifiedSample: Array<{ docId: string; docType: string; heading: string; text: string }> = [];
+    const stratifiedSample: Array<{ docId: string; docType: string; heading: string; signals: SectionSignals }> = [];
     const totalPool = [...samplePoolByType.values()].reduce((s, a) => s + a.length, 0);
-    const flatTarget = Math.max(1, Math.ceil(totalPool * 0.10));
+    const flatTarget = Math.max(1, Math.ceil(totalPool * CONFIG.llmSampleRate));
 
     for (const [, pool] of samplePoolByType) {
       const minFromBucket = Math.min(2, pool.length);
@@ -322,15 +307,14 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
       stratifiedSample.push(...extra);
     }
 
-    const validation = await validateWithLlm(stratifiedSample, regexCountsByDoc);
+    const validation = await validateWithLlm(stratifiedSample);
     state.llmValidation = {
       sampledDocIds: validation.sampledDocIds,
       regexVsLlmDelta: validation.regexVsLlmDelta,
       confidenceInterval: validation.confidenceInterval,
       byDocumentType: validation.byDocumentType,
-      // GAP-09: track LLM recovery/rejection for report
-      ...(validation.llmRecoveredCount > 0 ? { llmRecoveredCount: validation.llmRecoveredCount } : {}),
-      ...(validation.llmRejectedCount > 0 ? { llmRejectedCount: validation.llmRejectedCount } : {}),
+      ...((validation.llmRecoveredCount ?? 0) > 0 ? { llmRecoveredCount: validation.llmRecoveredCount } : {}),
+      ...((validation.llmRejectedCount ?? 0) > 0 ? { llmRejectedCount: validation.llmRejectedCount } : {}),
     };
 
     if (validation.regexVsLlmDelta > 0.2) {

@@ -17,31 +17,33 @@ Antworte NUR mit einem JSON-Objekt. Keine Erklärung, kein Markdown.
 Format: { "original_string": "normalisierte_form", ... }`;
 }
 
-// Validate requirement extraction for a section of text.
-// Returns JSON array of requirements found.
-export function requirementValidationPrompt(sectionText: string): string {
-  return `Analysiere diesen technischen Dokumentabschnitt aus einem Lastenheft.
-Zähle und klassifiziere NUR die enthaltenen Anforderungen.
+// PRIVACY: Structural signals only — no document text permitted in LLM validation.
+// The text is consumed only to compute signals in the caller; the text itself is never passed here.
+export interface SectionSignals {
+  wordCount: number;
+  modalVerbCount: number;
+  sentenceCount: number;
+  hasQuantitativeValues: boolean;
+  regexCount: number;
+}
 
-Abschnitt:
----
-${sectionText}
----
+// Validate whether a regex-extracted requirement count is plausible.
+// Accepts ONLY pre-computed structural signals — zero document content.
+// Returns a single word: PLAUSIBLE, LOW, or HIGH.
+export function requirementValidationPrompt(signals: SectionSignals): string {
+  return `You are validating requirement extraction quality for a technical document scanner.
 
-Antworte NUR mit einem JSON-Array. Keine Erklärung, kein Markdown.
-Format:
-[
-  {
-    "type": "MUSS",
-    "category": "Material",
-    "has_quantitative_value": true
-  }
-]
+A document section has these structural characteristics:
+- Word count: ${signals.wordCount}
+- Modal verb occurrences (muss/soll/kann/shall/must/should): ${signals.modalVerbCount}
+- Sentence count: ${signals.sentenceCount}
+- Contains quantitative values (measurements, tolerances): ${signals.hasQuantitativeValues}
 
-Gültige type-Werte: MUSS, SOLL, KANN, INFORMATIV
-Gültige category-Werte: Material, Toleranz, Prüfung, Verpackung, Lieferung, Sicherheit, Sonstiges
+A regex extractor found ${signals.regexCount} requirement(s) in this section.
 
-Wenn keine Anforderungen vorhanden sind, antworte mit: []`;
+Is this requirement count PLAUSIBLE given the structural signals?
+
+Respond with ONLY one word: PLAUSIBLE, LOW (count seems too low — more requirements likely present), or HIGH (count seems too high — likely false positives).`;
 }
 
 // Determine if two documents are different versions of the same document.

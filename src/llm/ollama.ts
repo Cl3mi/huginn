@@ -1,11 +1,10 @@
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 
-const EMBED_TIMEOUT_MS = 30_000;
-const COMPLETE_TIMEOUT_MS = 60_000;
+const EMBED_TIMEOUT_MS = CONFIG.ollamaEmbedTimeoutMs;
+const COMPLETE_TIMEOUT_MS = CONFIG.ollamaCompleteTimeoutMs;
 const MAX_RETRIES = 3;
 
-// Check if Ollama is reachable and the embed model is available
 export async function checkOllamaHealth(): Promise<{ ok: boolean; modelsAvailable: string[] }> {
   try {
     const res = await fetch(`${CONFIG.ollamaUrl}/api/tags`, {
@@ -20,7 +19,6 @@ export async function checkOllamaHealth(): Promise<{ ok: boolean; modelsAvailabl
   }
 }
 
-// Generate embeddings for a list of texts. Processes in batches.
 export async function embed(texts: string[]): Promise<Float32Array[]> {
   const results: Float32Array[] = [];
 
@@ -66,7 +64,6 @@ async function embedOne(text: string, attempt = 0): Promise<Float32Array> {
   }
 }
 
-// Generate a text completion (low temperature for structured extraction)
 export async function complete(
   prompt: string,
   options?: { temperature?: number; maxTokens?: number }

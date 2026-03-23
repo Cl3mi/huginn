@@ -1,7 +1,0 @@
-{"timestamp":"2026-03-16T16:13:33.000Z","phase":"startup","level":"INFO","message":"=== Huginn Document Intelligence Scanner ===","data":{"scanId":"scan-1773677613000-b8ddd2ea","documentsRoot":"./_test-docs","reportOutput":"./reports"}}
-{"timestamp":"2026-03-16T16:13:33.001Z","phase":"startup","level":"INFO","message":"Running regex pattern test suite..."}
-{"timestamp":"2026-03-16T16:13:33.001Z","phase":"startup","level":"INFO","message":"Regex test suite passed","data":{"testedPatterns":10}}
-{"timestamp":"2026-03-16T16:13:33.001Z","phase":"startup","level":"INFO","message":"Checking Tika health...","data":{"url":"http://localhost:19998"}}
-{"timestamp":"2026-03-16T16:13:33.011Z","phase":"startup","level":"WARN","message":"Tika is not reachable — PDF parsing will be skipped","data":{"url":"http://localhost:19998"}}
-{"timestamp":"2026-03-16T16:13:33.011Z","phase":"startup","level":"INFO","message":"Checking Ollama health...","data":{"url":"http://localhost:11435"}}
-{"timestamp":"2026-03-16T16:13:33.011Z","phase":"startup","level":"ERROR","message":"Ollama is not reachable — GPU is required, aborting scan","data":{"url":"http://localhost:11435"}}

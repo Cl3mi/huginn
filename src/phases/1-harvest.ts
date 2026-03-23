@@ -8,7 +8,7 @@ import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
 
-// Known OEM name tokens to detect in path segments
+// OEM tokens in path segments — containing segment is customer, next segment is project
 const OEM_TOKENS = [
   { token: /\bmerced(es|benz)\b/i, oem: "Mercedes" },
   { token: /\bbmw\b/i, oem: "BMW" },
@@ -18,6 +18,12 @@ const OEM_TOKENS = [
   { token: /\bdaimler\b/i, oem: "Daimler" },
   { token: /\bstellantis\b/i, oem: "Stellantis" },
 ];
+
+// Platform/project codes where the segment itself IS the project (e.g. G5X, G45, F30)
+const BMW_PLATFORM_CODE = /^G\d{1,2}X$|^G\d{2,3}$|^F\d{2}X?$/i;
+
+const DOC_CATEGORY_RFQ = /^rfq$/i;
+const DOC_CATEGORY_QUOTATION = /^quot(?:ation)?s?$|^angebot[e]?$/i;
 
 async function computeSha256Stream(absolutePath: string): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -35,7 +41,6 @@ function inferCustomerFromPath(segments: string[]): string | undefined {
       if (token.test(seg)) return oem;
     }
   }
-  // Also check for OEM names in segment text
   for (const seg of segments) {
     const matches = findAllMatches(PATTERNS.oemNames, seg);
     if (matches.length > 0) return matches[0];
@@ -44,15 +49,29 @@ function inferCustomerFromPath(segments: string[]): string | undefined {
 }
 
 function inferProjectFromPath(segments: string[], customerSegIndex: number): string | undefined {
-  // Project is typically the segment after the customer segment
   const after = segments.slice(customerSegIndex + 1);
   if (after.length > 0) return after[0];
   return undefined;
 }
 
+function inferBmwOemFromPlatformCode(segments: string[]): string | undefined {
+  for (const seg of segments) {
+    if (BMW_PLATFORM_CODE.test(seg)) return "BMW";
+  }
+  return undefined;
+}
+
+function inferDocumentCategoryFromPath(segments: string[]): "rfq" | "quotation" | undefined {
+  for (const seg of segments) {
+    if (DOC_CATEGORY_RFQ.test(seg)) return "rfq";
+    if (DOC_CATEGORY_QUOTATION.test(seg)) return "quotation";
+  }
+  return undefined;
+}
+
 function inferFolderStructure(files: FileEntry[]): ScannerState["folderStructureInference"] {
   if (files.length === 0) {
-    return { likelyPattern: "empty", confidence: 0, customerNames: [], projectNames: [] };
+    return { likelyPattern: "empty", confidence: 0, customerNames: [], projectNames: [], documentCategories: [] };
   }
 
   const depths = files.map((f) => f.depth);
@@ -62,14 +81,18 @@ function inferFolderStructure(files: FileEntry[]): ScannerState["folderStructure
 
   const customerNames = [...new Set(files.flatMap((f) => f.inferredCustomer ? [f.inferredCustomer] : []))];
   const projectNames = [...new Set(files.flatMap((f) => f.inferredProject ? [f.inferredProject] : []))];
+  const documentCategories = [...new Set(files.flatMap((f) => f.inferredDocumentCategory ? [f.inferredDocumentCategory] : []))];
 
-  // Determine pattern based on depth distribution
   let likelyPattern: string;
   let confidence: number;
 
   if (maxDepth - minDepth <= 1 && avgDepth <= 2) {
     likelyPattern = "flat";
     confidence = 0.7;
+  } else if (documentCategories.length > 0 && projectNames.length > 0) {
+    // project codes as top-level dirs, doc-category subdirs (e.g. G5X/rfq/, G6X/quotations/)
+    likelyPattern = "project/doc-category/docs";
+    confidence = 0.85;
   } else if (customerNames.length > 0 && projectNames.length > 0) {
     likelyPattern = "customer/project/offer-version/docs";
     confidence = 0.75;
@@ -81,7 +104,7 @@ function inferFolderStructure(files: FileEntry[]): ScannerState["folderStructure
     confidence = 0.3;
   }
 
-  return { likelyPattern, confidence, customerNames, projectNames };
+  return { likelyPattern, confidence, customerNames, projectNames, documentCategories };
 }
 
 export async function runHarvest(state: ScannerState): Promise<void> {
@@ -98,6 +121,7 @@ export async function runHarvest(state: ScannerState): Promise<void> {
 
   const extensionCounts: Record<string, number> = {};
   let docIndex = 0;
+  let hashErrors = 0; // FINDING-013: track files that could not be hashed
 
   for (const relativePath of files) {
     const absolutePath = join(state.documentsRoot, relativePath);
@@ -117,23 +141,34 @@ export async function runHarvest(state: ScannerState): Promise<void> {
       sha256 = await computeSha256Stream(absolutePath);
     } catch (e) {
       logger.warn("Cannot hash file, skipping", { path: absolutePath, error: String(e) });
+      hashErrors++;
       continue;
     }
 
-    // Build path segments (split by / or \)
     const segments = relativePath.split(/[/\\]/).filter(Boolean);
-    // Remove the filename from segments for customer/project detection
     const dirSegments = segments.slice(0, -1);
 
-    const inferredCustomer = inferCustomerFromPath(dirSegments);
+    let inferredCustomer = inferCustomerFromPath(dirSegments);
+    // PATTERNS.oemNames is global — reset lastIndex after each .test() call
     const customerSegIndex = inferredCustomer
-      ? dirSegments.findIndex((s) => OEM_TOKENS.some(({ token }) => token.test(s)) || PATTERNS.oemNames.test(s))
+      ? dirSegments.findIndex((s) => {
+          const matchedOemToken = OEM_TOKENS.some(({ token }) => token.test(s));
+          const matchedOemName = PATTERNS.oemNames.test(s);
+          PATTERNS.oemNames.lastIndex = 0;
+          return matchedOemToken || matchedOemName;
+        })
       : -1;
+
+    if (!inferredCustomer) {
+      inferredCustomer = inferBmwOemFromPlatformCode(dirSegments);
+    }
 
     const inferredProject =
       customerSegIndex >= 0
         ? inferProjectFromPath(dirSegments, customerSegIndex)
         : dirSegments.length > 0 ? dirSegments[0] : undefined;
+
+    const inferredDocumentCategory = inferDocumentCategoryFromPath(dirSegments);
 
     docIndex++;
     const id = `doc-${String(docIndex).padStart(3, "0")}`;
@@ -148,10 +183,11 @@ export async function runHarvest(state: ScannerState): Promise<void> {
       sha256,
       modifiedAt: fileStat.mtime,
       createdAt: fileStat.birthtime,
-      depth: segments.length - 1, // depth = number of directory levels
+      depth: segments.length - 1,
       pathSegments: segments,
       ...(inferredCustomer ? { inferredCustomer } : {}),
       ...(inferredProject ? { inferredProject } : {}),
+      ...(inferredDocumentCategory ? { inferredDocumentCategory } : {}),
     };
 
     state.files.push(entry);
@@ -159,7 +195,6 @@ export async function runHarvest(state: ScannerState): Promise<void> {
 
   state.folderStructureInference = inferFolderStructure(state.files);
 
-  // Reset oemNames pattern (it's global)
   const oemByCustomer: Record<string, number> = {};
   for (const f of state.files) {
     if (f.inferredCustomer) {
@@ -172,5 +207,6 @@ export async function runHarvest(state: ScannerState): Promise<void> {
     byExtension: extensionCounts,
     byCustomer: oemByCustomer,
     folderPattern: state.folderStructureInference.likelyPattern,
+    ...(hashErrors > 0 ? { hashErrors } : {}),
   });
 }

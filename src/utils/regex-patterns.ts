@@ -43,8 +43,8 @@ export const PATTERNS = {
   // Material keywords
   materialKeywords: /\b(Werkstoff|Material|Stahl|Aluminium|Kunststoff|Polymer|Compound|Legierung|Beschichtung|coating|steel|plastic)\b/gi,
 
-  // Tolerance keywords
-  toleranceKeywords: /\b(Toleranz|Maß|Abweichung|Grenzwert|Nominalwert|Nennwert|±|plus\s*minus|Genauigkeit|accuracy|tolerance)\b/gi,
+  // Tolerance keywords — ± is not a word char, must stay outside \b guards
+  toleranceKeywords: /(?:\b(?:Toleranz|Maß|Abweichung|Grenzwert|Nominalwert|Nennwert|plus\s*minus|Genauigkeit|accuracy|tolerance)\b|±)/gi,
 
   // Testing keywords
   testingKeywords: /\b(Prüfung|Test|Nachweis|Validierung|Verifikation|Simulation|Messung|Prüfvorschrift|Prüfspezifikation|testing|validation|verification)\b/gi,
@@ -58,7 +58,7 @@ export const PATTERNS = {
   // Incoterms
   incoterms: /\b(EXW|FCA|CPT|CIP|DAP|DPU|DDP|FAS|FOB|CFR|CIF)\b/g,
 
-  // GAP-01: Declarative requirement indicators (German: value assignment without modal verbs)
+  // Declarative requirement indicators (value assignment without modal verbs)
   declarative: /\b(?:beträgt|ist\s+einzuhalten|zu\s+gewährleisten|ist\s+festgelegt|ist\s+vorgeschrieben|sind\s+festgelegt|sind\s+vorgeschrieben)\b/gi,
 
   // Intra-corpus document IDs (e.g. NOVA-SRS-001, TITAN-IRS-002)

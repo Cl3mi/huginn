@@ -11,18 +11,19 @@ export interface FileEntry {
   sha256: string;
   modifiedAt: Date;
   createdAt: Date;
-  depth: number;                 // directory depth from root
+  depth: number;
   pathSegments: string[];        // split path for folder structure inference
-  inferredCustomer?: string;     // detected from path or content
-  inferredProject?: string;      // detected from path or content
+  inferredCustomer?: string;
+  inferredProject?: string;
+  inferredDocumentCategory?: "rfq" | "quotation"; // detected from path segment (e.g. rfq/, quotations/)
 }
 
 export interface HeadingNode {
   level: number;                 // 1-6
-  text: string;                  // heading text (ONLY headings, never paragraph content)
+  text: string;                  // ONLY headings, never paragraph content
   numbering?: string;            // "4.2.1" if detected
-  childCount: number;            // number of sub-headings
-  approximateTokens: number;     // estimated tokens in this section
+  childCount: number;
+  approximateTokens: number;
 }
 
 export interface ParserComparison {
@@ -34,41 +35,38 @@ export interface ParserComparison {
 }
 
 export interface ParsedDocument extends FileEntry {
-  // Phase 2 output
   charCount: number;
   tokenCountEstimate: number;
   pageCount?: number;
   language: string;              // detected via franc
-  headings: HeadingNode[];       // hierarchical heading tree
+  headings: HeadingNode[];
   hasNumberedHeadings: boolean;
   tableCount: number;
   parserUsed: "officeparser" | "tika";
   parserComparisonResult?: ParserComparison;
   isScannedPdf: boolean;
   isOcrRequired: boolean;
-  // IMP-01: Three-tier PDF classification
+  // Three-tier PDF classification
   pdfClassification?: "fully_scanned" | "hybrid" | "native" | "not_pdf";
   imageCount?: number;           // embedded image count (PDFs only, from Tika)
-  // GAP-02: Per-page scanned analysis (PDFs only)
+  // Per-page scanned analysis (PDFs only)
   scannedPageRatio?: number;     // fraction of pages detected as image-only (0.0–1.0)
   scannedPageIndices?: number[]; // 1-indexed page numbers detected as image-only
-  // IMP-02: Parse success tracking
-  parseSuccess: boolean;         // charCount > 100
-  parseFailureReason?: "empty_extraction" | "tika_error" | "zero_pages";
-  // IMP-09: Date source reliability (kept for Phase 4 compatibility)
-  dateSource?: "filename" | "docx_core_xml" | "pdf_metadata" | "mtime";
-  // GAP-07: Consolidated date signals — used by Phase 4 for bestDate ordering
-  dateSignals: DateSignals;
-  // IMP-07: Requirement quality counters (set in Phase 6)
-  requirementQuality?: { confirmed: number; negated: number; uncertain: number; raw: number };
+  parseSuccess: boolean;
+  parseFailureReason?: "empty_extraction" | "tika_error" | "zero_pages" | "garbled_encoding";
+  dateSource?: "filename" | "docx_core_xml" | "pdf_metadata" | "mtime"; // kept for Phase 4 compatibility
+  dateSignals: DateSignals;      // used by Phase 4 for bestDate ordering
+  // Runtime cache — set in Phase 2, consumed by Phases 3/5/6. NEVER serialized to JSON.
+  textContent?: string;
+  requirementQuality?: { confirmed: number; negated: number; uncertain: number; raw: number }; // set in Phase 6
   // RAG: Direct chunking strategy signal for downstream ingestion pipeline
   recommendedChunkStrategy: "heading_sections" | "table_rows" | "sliding_window";
   chunkStrategyReasoning: ChunkStrategyReasoning;
   // RAG: Whether requirement metadata from this doc is trustworthy for retrieval filtering
   requirementMetadataReliable: boolean;
   detectedOem?: "mercedes" | "bmw" | "audi" | "unknown";
-  oemSource?: "folder" | "document_internal" | "reconciled"; // GAP-06
-  detectedDocType?: "lastenheft" | "angebot" | "abweichliste" | "norm" | "pruefspezifikation" | "testbericht" | "sla" | "lessons_learned" | "fmea" | "audit" | "planning" | "other";
+  oemSource?: "folder" | "document_internal" | "reconciled";
+  detectedDocType?: "lastenheft" | "pflichtenheft" | "angebot" | "abweichliste" | "norm" | "qualitätsvorgabe" | "pruefspezifikation" | "testbericht" | "sla" | "lessons_learned" | "fmea" | "audit" | "planning" | "8d_report" | "empb" | "aenderungsantrag" | "kontrollplan" | "serienfreigabe" | "reklamation" | "arbeitsanweisung" | "protokoll" | "handbuch" | "other";
 }
 
 export interface StructuralFingerprint {
@@ -97,7 +95,7 @@ export interface DocumentFingerprint {
   headingMinHash: Uint32Array;   // 128 hash values
   semanticEmbedding?: Float32Array; // 1024-dim BGE-M3 (optional if Ollama unavailable)
   requirementDensity: RequirementDensityVector;
-  sectionEmbeddings?: Array<{ headingPath: string; embedding: Float32Array }>; // GAP-03
+  sectionEmbeddings?: Array<{ headingPath: string; embedding: Float32Array }>;
 }
 
 export interface VersionPair {
@@ -114,7 +112,7 @@ export interface VersionPair {
   score: number;                 // 0-12
   confidence: "HIGH" | "MEDIUM" | "LOW" | "NOT_A_PAIR";
   likelyNewer: "A" | "B" | "UNKNOWN";
-  versionPairFlag?: "template_reuse_suspected"; // IMP-03
+  versionPairFlag?: "template_reuse_suspected";
 }
 
 export interface ExtractedReference {
@@ -123,23 +121,24 @@ export interface ExtractedReference {
   rawText: string;               // exact match from regex (short string, not content)
   normalized?: string;           // LLM-normalized form, e.g. "ISO 9001:2015"
   sectionContext: string;        // heading where found (NOT paragraph text)
-  resolvedToDocId?: string;      // if matched to another doc in corpus
+  resolvedToDocId?: string;
   resolutionMethod?: "exact" | "fuzzy" | "unresolved" | "external_norm";
-  resolutionClassification?: "likely_missing_from_corpus" | "likely_matcher_failure"; // GAP-04
-  normalizationConfidence?: "certain" | "uncertain"; // GAP-10
+  resolutionClassification?: "likely_missing_from_corpus" | "likely_matcher_failure";
+  normalizationConfidence?: "certain" | "uncertain";
 }
 
 export interface ExtractedRequirement {
   docId: string;
   sectionHeading: string;        // which section (heading only)
-  type: "MUSS" | "SOLL" | "KANN" | "INFORMATIV" | "DEKLARATIV"; // GAP-01
+  type: "MUSS" | "SOLL" | "KANN" | "INFORMATIV" | "DEKLARATIV";
   category: "Material" | "Toleranz" | "Prüfung" | "Verpackung" | "Lieferung" | "Sicherheit" | "Sonstiges";
   hasQuantitativeValue: boolean;
-  quantitativeValueSummary?: string; // e.g. "20 N/mm²" — short, not a sentence
-  linkedNorm?: string;           // if requirement references a norm
+  quantitativeValueCount?: number;
+  quantitativeUnitTypes?: string[];  // unit type tokens, e.g. ["mm", "°C"] — no spec values
+  linkedNorm?: string;
   linkedFikb?: string;           // FIKB/KB_Master number if present
-  isSafetyRelevant: boolean;     // flagged if section mentions safety keywords
-  source?: "regex" | "llm_recovery" | "regex_unconfirmed"; // GAP-09
+  isSafetyRelevant: boolean;
+  source?: "regex" | "llm_recovery" | "regex_unconfirmed";
 }
 
 export interface DateSignals {
@@ -156,10 +155,10 @@ export interface ChunkStrategyReasoning {
   confidence: number;            // 0.0 – 1.0
   signals: {
     headingCount: number;
-    headingDepth: number;         // max heading level found (1–6), 0 if none
+    headingDepth: number;         // max heading level (1-6), 0 if none
     avgTokensPerSection: number;  // 0 if no headings
     tableCount: number;
-    hasNestedHeadings: boolean;   // any heading at level > 2
+    hasNestedHeadings: boolean;
     isXlsx: boolean;
     pdfClassification: string;
   };
@@ -185,24 +184,25 @@ export interface ScannerState {
   parsed: ParsedDocument[];
   fingerprints: DocumentFingerprint[];
   versionPairs: VersionPair[];
-  versionChains: string[][];     // ordered arrays of doc IDs
+  versionChains: string[][];
   references: ExtractedReference[];
   referenceGraph: Map<string, string[]>; // docId → [referenced docIds]
   requirements: ExtractedRequirement[];
   llmValidation: {
     sampledDocIds: string[];
-    regexVsLlmDelta: number;     // percentage difference
+    regexVsLlmDelta: number;
     confidenceInterval: { lower: number; upper: number };
-    byDocumentType?: Record<string, { sampled: number; avgDelta: number }>; // IMP-04
-    llmRecoveredCount?: number;  // GAP-09: requirements found by LLM but missed by regex
-    llmRejectedCount?: number;   // GAP-09: requirements rejected by LLM but found by regex
+    byDocumentType?: Record<string, { sampled: number; avgDelta: number }>;
+    llmRecoveredCount?: number;  // requirements found by LLM but missed by regex
+    llmRejectedCount?: number;   // requirements rejected by LLM but found by regex
   };
   consistencyChecks: ConsistencyCheck[];
   folderStructureInference: {
-    likelyPattern: string;       // e.g. "customer/project/offer-version/docs"
+    likelyPattern: string;       // e.g. "project/doc-category/docs" or "customer/project/offer-version/docs"
     confidence: number;
     customerNames: string[];
     projectNames: string[];
+    documentCategories: string[]; // e.g. ["rfq", "quotation"]
   };
 }
 
@@ -230,6 +230,7 @@ export function createInitialState(scanId: string, documentsRoot: string): Scann
       confidence: 0,
       customerNames: [],
       projectNames: [],
+      documentCategories: [],
     },
   };
 }

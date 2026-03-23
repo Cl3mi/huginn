@@ -1,4 +1,3 @@
-import { readFile } from "fs/promises";
 import type { ScannerState, ExtractedReference } from "../state.ts";
 import { logger } from "../utils/logger.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
@@ -11,9 +10,7 @@ function clampString(s: string): string {
   return s.slice(0, MAX_RAW_REF_LENGTH);
 }
 
-// IMP-06: Static lookup table for common norms in automotive supplier docs
-// GAP-10: Expanded with additional variants and aliases
-// Resolution order: static table → fuzzy match → LLM
+// Static lookup for common automotive norms. Resolution order: static table → fuzzy match → LLM
 const AUTOMOTIVE_NORM_CANONICAL: Record<string, string> = {
   // ISO quality / management
   "ISO 9001": "ISO 9001:2015",
@@ -101,9 +98,7 @@ function editDistance(a: string, b: string): number {
   return dp[m]![n]!;
 }
 
-// IMP-06: Extract base and version parts from a norm reference
-// "VDA 4.1" → { base: "VDA", version: "4.1" }
-// "ISO 9001:2015" → { base: "ISO 9001", version: "2015" }
+// "VDA 4.1" → { base: "VDA", version: "4.1" };  "ISO 9001:2015" → { base: "ISO 9001", version: "2015" }
 function splitNormParts(normRef: string): { base: string; version: string | null } {
   // Year version: "ISO 9001:2015"
   const yearMatch = normRef.match(/^(.+?):\s*(\d{4})$/);
@@ -114,8 +109,7 @@ function splitNormParts(normRef: string): { base: string; version: string | null
   return { base: normRef.trim(), version: null };
 }
 
-// IMP-06: Fuzzy match with version pinning
-// Returns true only if norms could be the same (version parts must match or one must be absent)
+// Returns true only if norms could be the same — mismatched version parts are never a match
 function normFuzzyMatch(a: string, b: string): boolean {
   const partA = splitNormParts(a);
   const partB = splitNormParts(b);
@@ -125,7 +119,6 @@ function normFuzzyMatch(a: string, b: string): boolean {
   return editDistance(partA.base.toLowerCase(), partB.base.toLowerCase()) < 3;
 }
 
-// Extract references from text (ephemeral)
 interface RawRefExtractions {
   norms: string[];
   qualitySpecs: string[];
@@ -138,7 +131,7 @@ interface RawRefExtractions {
   requirementIds: string[];  // P1: e.g. REQ-001, ABW-042
 }
 
-// P1: norm prefixes — exclude from intraCorpusId results (ISO-xxx-yyy patterns are norms, not doc IDs)
+// exclude norm prefixes from intraCorpusId results (ISO-xxx-yyy patterns are norms, not doc IDs)
 const NORM_PREFIXES = new Set(["ISO", "DIN", "EN", "VDA", "IATF", "IEC"]);
 
 function extractRawRefs(text: string): RawRefExtractions {
@@ -157,19 +150,12 @@ function extractRawRefs(text: string): RawRefExtractions {
   };
 }
 
-function getCurrentHeading(text: string, matchIndex: number, headings: string[]): string {
-  // Return the nearest heading name — we use the doc's heading list as context
-  return headings.length > 0 ? (headings[0] ?? "unknown") : "unknown";
-}
-
-// GAP-10: Norm normalization result with confidence tracking
 interface NormEntry {
   normalized: string;
   confidence: "certain" | "uncertain";
 }
 
-// IMP-06: Normalize raw norm strings — static lookup first, then LLM
-// GAP-10: Returns confidence: "certain" for static hits, "uncertain" for LLM hits
+// Normalize norms — static lookup first ("certain"), LLM fallback ("uncertain")
 async function normalizeLlm(rawNorms: string[], ollamaAvailable: boolean): Promise<Map<string, NormEntry>> {
   const normMap = new Map<string, NormEntry>();
   if (rawNorms.length === 0) return normMap;
@@ -193,22 +179,28 @@ async function normalizeLlm(rawNorms: string[], ollamaAvailable: boolean): Promi
     logger.info("Norm static lookup", { staticHits, remaining: needsLlm.length });
   }
 
-  // Step 2: LLM for remaining norms — uncertain confidence
+  // Step 2: LLM for remaining norms — batched to avoid timeout
   if (!ollamaAvailable || needsLlm.length === 0) return normMap;
 
-  try {
-    const prompt = referenceNormalizationPrompt(needsLlm);
-    const response = await complete(prompt, { temperature: 0.0, maxTokens: 2000 });
-    const parsed = parseJsonFromLlm<Record<string, string>>(response);
-    for (const [orig, normalized] of Object.entries(parsed)) {
-      if (typeof normalized === "string" && normalized.length <= MAX_RAW_REF_LENGTH) {
-        normMap.set(orig, { normalized, confidence: "uncertain" });
+  const NORM_BATCH_SIZE = 20;
+  let llmResolved = 0;
+  for (let i = 0; i < needsLlm.length; i += NORM_BATCH_SIZE) {
+    const batch = needsLlm.slice(i, i + NORM_BATCH_SIZE);
+    try {
+      const prompt = referenceNormalizationPrompt(batch);
+      const response = await complete(prompt, { temperature: 0.0, maxTokens: 1000 });
+      const parsed = parseJsonFromLlm<Record<string, string>>(response);
+      for (const [orig, normalized] of Object.entries(parsed)) {
+        if (typeof normalized === "string" && normalized.length <= MAX_RAW_REF_LENGTH) {
+          normMap.set(orig, { normalized, confidence: "uncertain" });
+          llmResolved++;
+        }
       }
+    } catch (e) {
+      logger.warn("Norm normalization LLM batch failed, skipping batch", { batchStart: i, error: String(e) });
     }
-    logger.info("Norm LLM normalization completed", { sent: needsLlm.length, resolved: normMap.size - staticHits });
-  } catch (e) {
-    logger.warn("Norm normalization LLM call failed, skipping", { error: String(e) });
   }
+  logger.info("Norm LLM normalization completed", { sent: needsLlm.length, resolved: llmResolved });
 
   return normMap;
 }
@@ -221,7 +213,6 @@ const INTERNAL_REF_TYPES = new Set<ExtractedReference["type"]>([
   "doc_ref", "chapter_ref", "fikb", "kb_master",
 ]);
 
-// GAP-04: Classify why an internal reference could not be resolved
 function classifyUnresolvedRef(
   rawText: string,
   allDocs: ScannerState["parsed"]
@@ -244,8 +235,6 @@ function classifyUnresolvedRef(
   return "likely_missing_from_corpus";
 }
 
-// Try to resolve a norm string to another document in the corpus
-// Returns resolutionMethod and optional GAP-04 classification for unresolved internal refs
 function resolveReference(
   rawText: string,
   normalized: string | undefined,
@@ -258,14 +247,13 @@ function resolveReference(
 } {
   const searchText = normalized ?? rawText;
 
-  // Exact match on filename
   for (const doc of allDocs) {
     if (doc.filename.toLowerCase().includes(searchText.toLowerCase())) {
       return { resolvedToDocId: doc.id, resolutionMethod: "exact" };
     }
   }
 
-  // IMP-06: Version-aware fuzzy match — pins numeric suffix to prevent VDA 4.1 ↔ VDA 4.2 false matches
+  // version-aware fuzzy match — pins numeric suffix to prevent VDA 4.1 ↔ VDA 4.2 false matches
   for (const doc of allDocs) {
     if (normFuzzyMatch(doc.filename.toLowerCase(), searchText.toLowerCase())) {
       return { resolvedToDocId: doc.id, resolutionMethod: "fuzzy" };
@@ -278,7 +266,6 @@ function resolveReference(
     return { resolutionMethod: "external_norm" };
   }
 
-  // GAP-04: Classify unresolved internal references
   if (INTERNAL_REF_TYPES.has(refType)) {
     const resolutionClassification = classifyUnresolvedRef(rawText, allDocs);
     return { resolutionMethod: "unresolved", resolutionClassification };
@@ -293,25 +280,16 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
   const allRawNorms: string[] = [];
   const docRawRefs = new Map<string, RawRefExtractions>();
 
-  // Read each doc's text ephemerally
   for (const doc of state.parsed) {
-    let text = "";
-    try {
-      const buf = await readFile(doc.absolutePath);
-      text = buf.toString("utf-8", 0, Math.min(buf.length, 1_000_000));
-    } catch {
-      continue;
-    }
+    const text = doc.textContent ?? "";
+    if (!text) continue;
 
     const refs = extractRawRefs(text);
     docRawRefs.set(doc.id, refs);
     allRawNorms.push(...refs.norms, ...refs.qualitySpecs);
   }
 
-  // Normalize norms with single LLM call
   const normMap = await normalizeLlm(allRawNorms, ollamaAvailable);
-
-  // Build ExtractedReference entries and reference graph
   const allDocs = state.parsed;
   const graphMap = new Map<string, string[]>();
 
@@ -336,10 +314,10 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
           rawText,
           ...(normEntry ? { normalized: normEntry.normalized } : {}),
           sectionContext: clampString(primaryHeading),
-          ...(normEntry ? { normalizationConfidence: normEntry.confidence } : {}), // GAP-10
+          ...(normEntry ? { normalizationConfidence: normEntry.confidence } : {}),
           resolutionMethod: resolution.resolutionMethod,
           ...(resolution.resolvedToDocId !== undefined ? { resolvedToDocId: resolution.resolvedToDocId } : {}),
-          ...(resolution.resolutionClassification !== undefined ? { resolutionClassification: resolution.resolutionClassification } : {}), // GAP-04
+          ...(resolution.resolutionClassification !== undefined ? { resolutionClassification: resolution.resolutionClassification } : {}),
         });
         if (resolution.resolvedToDocId) {
           graphMap.get(doc.id)!.push(resolution.resolvedToDocId);
@@ -357,15 +335,14 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
     pushRef("kb_master", refs.kbMasters);
     pushRef("chapter_ref", refs.chapterRefs);
     pushRef("doc_ref", refs.docRefs);
-    // P1: intra-corpus document IDs (e.g. NOVA-SRS-001) → "doc_ref" type
+    // intra-corpus document IDs (e.g. NOVA-SRS-001)
     pushRef("doc_ref", refs.intraCorpusIds);
-    // P1: requirement cross-reference IDs (e.g. REQ-001, ABW-042) → "chapter_ref" type
+    // requirement cross-reference IDs (e.g. REQ-001, ABW-042)
     pushRef("chapter_ref", refs.requirementIds);
   }
 
   state.referenceGraph = graphMap;
 
-  // Cross-project norm tracking
   const normUsageByProject = new Map<string, Set<string>>();
   for (const ref of state.references) {
     if (!["iso_norm", "din_norm", "en_norm", "vda_norm", "iatf_norm", "quality_spec"].includes(ref.type)) continue;
@@ -376,7 +353,6 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
     normUsageByProject.get(project)!.add(normKey);
   }
 
-  // Log norms appearing in only one project (potentially new/unique)
   const normProjectCount = new Map<string, number>();
   for (const [, norms] of normUsageByProject) {
     for (const norm of norms) {
@@ -386,7 +362,7 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
   const uniqueToOneProject = [...normProjectCount.entries()]
     .filter(([, count]) => count === 1)
     .map(([norm]) => norm)
-    .slice(0, 20); // cap for logging
+    .slice(0, 20);
 
   const resolvedCount = state.references.filter((r) => r.resolutionMethod !== "unresolved").length;
 

@@ -26,9 +26,24 @@ async function detectLanguage(text: string): Promise<string> {
   return francFn(sample, { minLength: 5 });
 }
 
-// --- Heading extraction strategies ---
+// Replace non-breaking spaces (U+00A0) so regex patterns match correctly
+function normalizeWhitespace(text: string): string {
+  return text.replace(/\u00A0/g, " ");
+}
 
-// Strategy 1: Numbered patterns like "1.", "1.1", "4.2.1 Title"
+// Detect garbled binary content — control chars (0x00–0x08, 0x0E–0x1F) indicate encoding failure.
+function isGarbledText(text: string): boolean {
+  if (text.length < 50) return false;
+  const sample = text.slice(0, 5000);
+  let controlCount = 0;
+  for (let i = 0; i < sample.length; i++) {
+    const code = sample.charCodeAt(i);
+    if ((code >= 0x00 && code <= 0x08) || (code >= 0x0E && code <= 0x1F)) controlCount++;
+  }
+  return controlCount / sample.length > 0.01; // >1% control chars = garbled
+}
+
+// Numbered patterns like "1.", "1.1", "4.2.1 Title"
 function extractHeadingsFromNumbered(text: string): string[] {
   const headings: string[] = [];
   const lines = text.split("\n");
@@ -42,12 +57,12 @@ function extractHeadingsFromNumbered(text: string): string[] {
   return headings;
 }
 
-// Strategy 2: XHTML h1-h6 tags (from Tika)
+// XHTML h1-h6 tags from Tika
 function headingsFromXhtml(xhtmlHeadings: string[]): string[] {
   return xhtmlHeadings.filter((h) => h.length >= 3 && h.length <= 200);
 }
 
-// Strategy 3: Heuristic — short lines, not ending in period, followed by longer lines
+// Heuristic — short lines without terminal period, followed by longer content
 function extractHeadingsFromHeuristic(text: string): string[] {
   const headings: string[] = [];
   const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -68,8 +83,7 @@ function extractHeadingsFromHeuristic(text: string): string[] {
   return headings;
 }
 
-// IMP-05: Strategy 4 — DOCX XML direct font-size parsing via unzip
-// Handles manually formatted headings (bold/large) that don't use Word Heading styles
+// Strategy 4: DOCX XML font-size parsing — catches manually formatted headings that don't use Word Heading styles
 async function extractHeadingsFromDocxXml(absolutePath: string): Promise<string[]> {
   try {
     const { stdout } = await execFileAsync(
@@ -77,19 +91,16 @@ async function extractHeadingsFromDocxXml(absolutePath: string): Promise<string[
       ["-p", absolutePath, "word/document.xml"],
       { maxBuffer: 10 * 1024 * 1024, timeout: 10000 }
     );
-    // Parse <w:p> paragraphs with font size >= 28 half-points (>=14pt) and bold flag
+    // Parse <w:p> paragraphs with font size >= 28 half-points (>=14pt)
     const headings: string[] = [];
-    // Match paragraph elements
     const paraRe = /<w:p[ >][\s\S]*?<\/w:p>/g;
     let pm: RegExpExecArray | null;
     while ((pm = paraRe.exec(stdout)) !== null) {
       const para = pm[0];
-      // Check for font size >= 28 half-points
       const szMatch = para.match(/<w:sz[^>]*w:val="(\d+)"/);
       if (!szMatch) continue;
       const sz = parseInt(szMatch[1] ?? "0", 10);
       if (sz < 28) continue;
-      // Extract text content (strip all XML tags)
       const text = para.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
       if (text.length >= 4 && text.length <= 120) {
         headings.push(text);
@@ -102,9 +113,8 @@ async function extractHeadingsFromDocxXml(absolutePath: string): Promise<string[
   }
 }
 
-// IMP-09: Extract date from filename (regex: YYYYMMDD or YYYY-MM-DD or YYYY_MM_DD)
+// Extract date from filename — supports YYYY-MM-DD, YYYY_MM_DD, YYYYMMDD
 function extractDateFromFilename(filename: string): Date | null {
-  // ISO date: 2024-03-15 or 2024_03_15 or 20240315
   const m8 = filename.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
   if (m8) {
     const d = new Date(`${m8[1]}-${m8[2]}-${m8[3]}`);
@@ -118,7 +128,7 @@ function extractDateFromFilename(filename: string): Date | null {
   return null;
 }
 
-// IMP-09: Extract dcterms:modified from DOCX core.xml
+// Extract dcterms:modified from DOCX core.xml
 async function extractDateFromDocxCoreXml(absolutePath: string): Promise<Date | null> {
   try {
     const { stdout } = await execFileAsync(
@@ -137,8 +147,7 @@ async function extractDateFromDocxCoreXml(absolutePath: string): Promise<Date | 
   return null;
 }
 
-// GAP-07: Extract document-internal revision/stand date from text
-// Searches the first 3000 chars where revision metadata typically appears
+// Extract revision/stand date from text — searches first 3000 chars where metadata typically appears
 function extractDateFromText(text: string): { date: Date; source: "stand_pattern" | "revision_pattern" } | null {
   const sample = text.slice(0, 3000);
   const re = /\b(Stand|Revision|Datum|Erstellt am|Geändert am|Änderungsdatum|Änderungsstand)\s*:?\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\b/i;
@@ -154,7 +163,7 @@ function extractDateFromText(text: string): { date: Date; source: "stand_pattern
   return { date: d, source };
 }
 
-// GAP-07: Build consolidated DateSignals from all available date sources
+// Build consolidated DateSignals from all available date sources
 async function buildDateSignals(
   file: FileEntry,
   text: string,
@@ -255,7 +264,7 @@ function buildHeadingTree(headingTexts: string[]): HeadingNode[] {
 
 type OemValue = NonNullable<ParsedDocument["detectedOem"]>;
 
-// --- OEM detection --- GAP-06: separate folder vs document-internal signals
+// OEM detection — folder and document-internal signals resolved separately
 function oemFromText(text: string): OemValue {
   const hasFikb = PATTERNS.fikb.test(text); PATTERNS.fikb.lastIndex = 0;
   const hasKbMaster = PATTERNS.kbMaster.test(text); PATTERNS.kbMaster.lastIndex = 0;
@@ -302,6 +311,15 @@ function classifyDocType(filename: string, headings: string[], sample: string): 
   if (/\b(sla|service[_\s-]?level)\b/i.test(fn)) return "sla";
   if (/\blessons?[_\s-]?learned\b/i.test(fn)) return "lessons_learned";
   if (/\b(angebot|proposal|offer)\b/i.test(fn)) return "angebot";
+  if (/\b8d[-_\s]?(bericht|report)\b/i.test(fn)) return "8d_report";
+  if (/\b(empb|erstmuster|isir)\b/i.test(fn)) return "empb";
+  if (/([äa]nderung)(santrag|sauftrag|sbekanntmachung)|change[-_\s]?request|\becr\b|\becn\b/i.test(fn)) return "aenderungsantrag";
+  if (/\b(kontrollplan|pr[üu]fplan|control[-_\s]?plan)\b/i.test(fn)) return "kontrollplan";
+  if (/\bserien(liefer)?freigabe\b|\bslf\b/i.test(fn)) return "serienfreigabe";
+  if (/\b(reklamation|beanstandung|warranty[-_\s]?claim)\b/i.test(fn)) return "reklamation";
+  if (/\b(arbeits|verfahrens)anweisung\b|\barbeitsvorschrift\b|work[-_\s]?instruction/i.test(fn)) return "arbeitsanweisung";
+  if (/\b(sitzungs|besprechungs)?protokoll\b|meeting[-_\s]?minutes/i.test(fn)) return "protokoll";
+  if (/\b(lieferanten)?handbuch\b|\bsupplier[-_\s]?manual\b|\bleitfaden\b/i.test(fn)) return "handbuch";
 
   // Content-based fallback (headings + sample only — no filename)
   if (/lessons?\s*learned/i.test(content)) return "lessons_learned";
@@ -314,6 +332,15 @@ function classifyDocType(filename: string, headings: string[], sample: string): 
   if (/qv[-\s]?\d|iso\s*\d|din\s*\d|en\s*\d/i.test(fn) || /\bnorm\b/i.test(content)) return "norm";
   if (/angebot|proposal|\boffer\b/i.test(content)) return "angebot";
   if (/lastenheft|spezifikation|anforderung|requirement/i.test(content)) return "lastenheft";
+  if (/\b8d[-_\s]?(bericht|report)\b/i.test(content)) return "8d_report";
+  if (/erstmusterpr[üu]fbericht|\bempb\b|\bisir\b|first\s+article\s+inspection/i.test(content)) return "empb";
+  if (/[äa]nderungsantrag|[äa]nderungsauftrag|engineering\s+change\s+request/i.test(content)) return "aenderungsantrag";
+  if (/kontrollplan|pr[üu]fplan|control\s*plan/i.test(content)) return "kontrollplan";
+  if (/serien(liefer)?freigabe|produktionsfreigabe/i.test(content)) return "serienfreigabe";
+  if (/\breklamation\b|\bbeanstandung\b|warranty\s+claim/i.test(content)) return "reklamation";
+  if (/arbeitsanweisung|verfahrensanweisung|\barbeitsvorschrift\b|work\s+instruction/i.test(content)) return "arbeitsanweisung";
+  if (/sitzungsprotokoll|besprechungsprotokoll|\bprotokoll\b/i.test(content)) return "protokoll";
+  if (/lieferantenhandbuch|supplier\s+manual|qualit[äa]tshandbuch/i.test(content)) return "handbuch";
   return "other";
 }
 
@@ -363,8 +390,6 @@ function deriveChunkStrategyWithReasoning(
     };
   }
 
-  // Has headings: heading_sections is primary recommendation
-  // Confidence scales with richness of heading structure
   let confidence: number;
   if (headingCount >= 10 && hasNestedHeadings) confidence = 0.90;
   else if (headingCount >= 5) confidence = 0.78;
@@ -395,7 +420,6 @@ function deriveRequirementReliability(
   return REQUIREMENT_RELIABLE_TYPES.has(detectedDocType);
 }
 
-// --- Main parse phase ---
 export async function runParse(state: ScannerState): Promise<void> {
   const t = logger.phaseStart("2-parse");
   let tikaUnavailable = false;
@@ -452,17 +476,17 @@ export async function runParse(state: ScannerState): Promise<void> {
 }
 
 async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promise<ParsedDocument> {
-  // Primary: officeparser
   const opResult = await parseWithOfficeParser(file.absolutePath);
+  const opText = normalizeWhitespace(opResult.text);
+  const opGarbled = isGarbledText(opText);
 
   // XLSX files have no meaningful heading structure — cell values like "5 days early" or
   // "13 days late" would be falsely picked up by the numbered/heuristic strategies.
   // Only trust Tika XHTML headings for XLSX (from named ranges or explicit headers).
   const isXlsx = file.extension === ".xlsx";
-  const numberedHeadings = isXlsx ? [] : extractHeadingsFromNumbered(opResult.text);
-  const heuristicHeadings = isXlsx ? [] : extractHeadingsFromHeuristic(opResult.text);
+  const numberedHeadings = isXlsx ? [] : extractHeadingsFromNumbered(opText);
+  const heuristicHeadings = isXlsx ? [] : extractHeadingsFromHeuristic(opText);
 
-  // IMP-05: DOCX XML direct parsing for manually-formatted headings (DOCX only)
   const docxXmlHeadings = file.extension === ".docx"
     ? await extractHeadingsFromDocxXml(file.absolutePath)
     : [];
@@ -492,16 +516,15 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
   const { headings: finalHeadings } = mergeHeadings(numberedHeadings, tikaHeadings, heuristicHeadings, docxXmlHeadings);
   const headingNodes = buildHeadingTree(finalHeadings);
 
-  const sample = opResult.text.slice(0, 2000);
-  // P2: skip franc for short docs — franc result unreliable below 200 chars
-  const language = opResult.charCount >= 200 ? await detectLanguage(opResult.text) : "und";
+  const sample = opText.slice(0, 2000);
+  // skip franc for short docs — franc result unreliable below 200 chars
+  const language = opResult.charCount >= 200 ? await detectLanguage(opText) : "und";
   const { oem: detectedOem, source: oemSource } = detectOem(sample, finalHeadings, file.pathSegments);
   const detectedDocType = classifyDocType(file.filename, finalHeadings, sample);
 
-  // GAP-07: Build consolidated date signals
   const dateSignals = await buildDateSignals(
     file,
-    opResult.text,
+    opText,
     file.extension === ".docx" ? { docxPath: file.absolutePath } : {}
   );
   const dateSource: ParsedDocument["dateSource"] =
@@ -511,7 +534,7 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
     "mtime";
 
   const charCount = opResult.charCount;
-  const parseSuccess = charCount > 100;
+  const parseSuccess = charCount > 100 && !opGarbled;
   const tableCount = tikaResult?.tableCount ?? 0;
   const { strategy: recommendedChunkStrategy, reasoning: chunkStrategyReasoning } =
     deriveChunkStrategyWithReasoning(file.extension, headingNodes, tableCount, "not_pdf");
@@ -520,7 +543,7 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
   return {
     ...file,
     charCount,
-    tokenCountEstimate: estimateTokens(opResult.text),
+    tokenCountEstimate: estimateTokens(opText),
     ...(tikaResult?.pageCount !== undefined ? { pageCount: tikaResult.pageCount } : {}),
     language,
     headings: headingNodes,
@@ -532,7 +555,7 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
     isOcrRequired: false,
     pdfClassification: "not_pdf",
     parseSuccess,
-    ...(!parseSuccess ? { parseFailureReason: "empty_extraction" as const } : {}),
+    ...(!parseSuccess ? { parseFailureReason: opGarbled ? "garbled_encoding" as const : "empty_extraction" as const } : {}),
     dateSource,
     dateSignals,
     recommendedChunkStrategy,
@@ -541,16 +564,20 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
     detectedOem,
     oemSource,
     ...(detectedDocType ? { detectedDocType } : {}),
+    // cached for downstream phases — avoids re-reading binary files
+    ...(!opGarbled && opText.length > 0 ? { textContent: opText.slice(0, 2_000_000) } : {}),
   };
 }
 
 async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
   const tikaResult = await parseWithTika(file.absolutePath);
+  const tikaText = normalizeWhitespace(tikaResult.text);
+  const tikaGarbled = isGarbledText(tikaText);
 
   const pageCount = tikaResult.pageCount ?? 1;
   const charsPerPage = tikaResult.charCount / pageCount;
 
-  // IMP-01: Three-tier hybrid PDF classification
+  // Three-tier hybrid PDF classification
   let pdfClassification: ParsedDocument["pdfClassification"];
   let isOcrRequired: boolean;
   if (charsPerPage < 10) {
@@ -575,8 +602,8 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
     });
   }
 
-  const numberedHeadings = extractHeadingsFromNumbered(tikaResult.text);
-  const heuristicHeadings = extractHeadingsFromHeuristic(tikaResult.text);
+  const numberedHeadings = extractHeadingsFromNumbered(tikaText);
+  const heuristicHeadings = extractHeadingsFromHeuristic(tikaText);
   const { headings: finalHeadings } = mergeHeadings(
     numberedHeadings,
     headingsFromXhtml(tikaResult.headingsFromXhtml),
@@ -584,16 +611,15 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
   );
   const headingNodes = buildHeadingTree(finalHeadings);
 
-  const sample = tikaResult.text.slice(0, 2000);
-  // P2: skip franc for short docs — franc result unreliable below 200 chars
-  const language = tikaResult.charCount >= 200 ? await detectLanguage(tikaResult.text) : "und";
+  const sample = tikaText.slice(0, 2000);
+  // skip franc for short docs — franc result unreliable below 200 chars
+  const language = tikaResult.charCount >= 200 ? await detectLanguage(tikaText) : "und";
   const { oem: detectedOem, source: oemSource } = detectOem(sample, finalHeadings, file.pathSegments);
   const detectedDocType = classifyDocType(file.filename, finalHeadings, sample);
 
-  // GAP-07: Build consolidated date signals
   const dateSignals = await buildDateSignals(
     file,
-    tikaResult.text,
+    tikaText,
     { tikaMetadata: tikaResult.metadata }
   );
   const dateSource: ParsedDocument["dateSource"] =
@@ -603,7 +629,7 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
     "mtime";
 
   const charCount = tikaResult.charCount;
-  const parseSuccess = charCount > 100;
+  const parseSuccess = charCount > 100 && !tikaGarbled;
   const { strategy: recommendedChunkStrategy, reasoning: chunkStrategyReasoning } =
     deriveChunkStrategyWithReasoning(file.extension, headingNodes, tikaResult.tableCount, pdfClassification);
   const requirementMetadataReliable = deriveRequirementReliability(detectedDocType, file.extension);
@@ -611,7 +637,7 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
   return {
     ...file,
     charCount,
-    tokenCountEstimate: estimateTokens(tikaResult.text),
+    tokenCountEstimate: estimateTokens(tikaText),
     pageCount,
     language,
     headings: headingNodes,
@@ -625,7 +651,7 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
     scannedPageRatio: tikaResult.scannedPageRatio,
     ...(tikaResult.scannedPageIndices.length > 0 ? { scannedPageIndices: tikaResult.scannedPageIndices } : {}),
     parseSuccess,
-    ...(!parseSuccess ? { parseFailureReason: "empty_extraction" as const } : {}),
+    ...(!parseSuccess ? { parseFailureReason: tikaGarbled ? "garbled_encoding" as const : "empty_extraction" as const } : {}),
     dateSource,
     dateSignals,
     recommendedChunkStrategy,
@@ -634,5 +660,7 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
     detectedOem,
     oemSource,
     ...(detectedDocType ? { detectedDocType } : {}),
+    // cached for downstream phases — avoids re-reading binary files
+    ...(!tikaGarbled && tikaText.length > 0 ? { textContent: tikaText.slice(0, 2_000_000) } : {}),
   };
 }

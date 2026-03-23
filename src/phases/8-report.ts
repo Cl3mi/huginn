@@ -25,7 +25,7 @@ function sanitizeReport(obj: unknown, path = "root"): void {
   if (Array.isArray(obj)) {
     // Check average length of string array items
     const stringItems = obj.filter((item) => typeof item === "string") as string[];
-    if (stringItems.length > 3) {
+    if (stringItems.length > 0) {
       const avgLen = stringItems.reduce((s, i) => s + i.length, 0) / stringItems.length;
       if (avgLen > 80) {
         throw new Error(
@@ -50,15 +50,17 @@ function computeMetadataQualityScore(state: ScannerState): {
   interpretation: string;
 } {
   const totalParsed = state.parsed.length;
+  // FINDING-018: empty corpus → score 0, not 90
+  if (totalParsed === 0) {
+    return { overall: 0, components: {}, interpretation: "No documents parsed — metrics unavailable" };
+  }
   // Parse success rate (weight 30%)
-  const successRate = totalParsed > 0
-    ? state.parsed.filter((d) => d.parseSuccess).length / totalParsed
-    : 1;
+  const successRate = state.parsed.filter((d) => d.parseSuccess).length / totalParsed;
 
   // Heading extraction confidence: rate of docs using xhtml or numbered strategy (weight 20%)
   // Proxy: docs with headings / total parsed
   const withHeadings = state.parsed.filter((d) => d.headings.length > 0).length;
-  const headingConf = totalParsed > 0 ? withHeadings / totalParsed : 1;
+  const headingConf = withHeadings / totalParsed;
 
   // Requirement validation delta (weight 20%) — inverted: lower delta = higher quality
   // P2: require >= 3 sampled docs for meaningful delta; fewer = unreliable measurement
@@ -121,7 +123,8 @@ function serializeState(state: ScannerState): unknown {
     scanId: state.scanId,
     startedAt: state.startedAt.toISOString(),
     completedAt: state.completedAt?.toISOString(),
-    documentsRoot: state.documentsRoot,
+    // FINDING-019: truncate absolute path to pass sanitizeReport 120-char guard
+    documentsRoot: state.documentsRoot.slice(0, CONFIG.maxStringLengthInReport),
     metadataQualityScore: mqScore,
     summary: {
       totalFiles: state.files.length,
@@ -129,6 +132,7 @@ function serializeState(state: ScannerState): unknown {
       parseFailures: state.parsed.filter((d) => !d.parseSuccess).length,
       byExtension: countBy(state.files, (f) => f.extension),
       byDocType: countBy(state.parsed, (d) => d.detectedDocType ?? "unknown"),
+      byDocumentCategory: countBy(state.files, (f) => f.inferredDocumentCategory ?? "unknown"),
       byOem: countBy(state.parsed, (d) => d.detectedOem ?? "unknown"),
       byLanguage: countBy(state.parsed, (d) => d.language),
       scannedPdfs: state.parsed.filter((d) => d.pdfClassification === "fully_scanned").length,
@@ -152,6 +156,7 @@ function serializeState(state: ScannerState): unknown {
       depth: f.depth,
       inferredCustomer: f.inferredCustomer,
       inferredProject: f.inferredProject,
+      inferredDocumentCategory: f.inferredDocumentCategory,
     })),
     parsed: state.parsed.map((d) => ({
       id: d.id,
@@ -223,6 +228,25 @@ function countBy<T>(arr: T[], fn: (item: T) => string): Record<string, number> {
 function generateDecisions(state: ScannerState, push: (...l: string[]) => void): void {
   const parsed = state.parsed;
   const pdfs = parsed.filter((d) => d.extension === ".pdf");
+
+  // DEC-CATEGORY: Document category namespace isolation (rfq vs quotation)
+  const rfqCount = parsed.filter((d) => d.inferredDocumentCategory === "rfq").length;
+  const quotCount = parsed.filter((d) => d.inferredDocumentCategory === "quotation").length;
+  const catDetected = rfqCount > 0 || quotCount > 0;
+  push("### DEC-CATEGORY: Document Category Namespace Isolation");
+  if (catDetected) {
+    push(`- ${rfqCount} RFQ documents, ${quotCount} quotation documents detected`);
+    push(`- RFQ = incoming requirements from OEM; quotation = supplier's offer/response`);
+    push(`- **Recommendation:** Implement separate vector collections or metadata namespace filter per category.`);
+    push(`  Query routing must inject \`category=rfq\` or \`category=quotation\` filter based on question intent.`);
+    push(`  Cross-category retrieval (e.g. "what did we offer vs what was asked?") requires explicit multi-namespace query.`);
+    push(`- **Confidence:** HIGH`);
+  } else {
+    push(`- No rfq/quotation folder structure detected — single-namespace RAG is acceptable`);
+    push(`- **Recommendation:** N/A — category-based namespace isolation not required`);
+    push(`- **Confidence:** N/A`);
+  }
+  push("");
 
   // DEC-CHUNK: Chunking strategy
   const chunkCounts = { heading_sections: 0, table_rows: 0, sliding_window: 0 };
@@ -431,9 +455,48 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   push("## Folder Structure Analysis", "");
   const fsi = state.folderStructureInference;
   push(`**Detected pattern:** ${fsi.likelyPattern} (confidence: ${(fsi.confidence * 100).toFixed(0)}%)`);
-  if (fsi.customerNames.length > 0) push(`**Detected customers:** ${fsi.customerNames.join(", ")}`);
+  if (fsi.customerNames.length > 0) push(`**Detected customers/OEMs:** ${fsi.customerNames.join(", ")}`);
   if (fsi.projectNames.length > 0) push(`**Detected projects:** ${fsi.projectNames.slice(0, 10).join(", ")}`);
+  if (fsi.documentCategories.length > 0) push(`**Detected document categories:** ${fsi.documentCategories.join(", ")}`);
   push("");
+
+  // Document category distribution — critical for RAG namespace isolation
+  const catFiles = state.files.filter((f) => f.inferredDocumentCategory !== undefined);
+  if (catFiles.length > 0) {
+    push("## Document Category Distribution", "");
+    push("> **RAG critical:** RFQ and quotation documents represent opposite sides of a business transaction.");
+    push("> They must be indexed as **separate retrieval namespaces** — never blended without an explicit category filter.");
+    push("> Mixing RFQ (OEM requirements) with quotations (supplier responses) produces contradictory retrieval results.");
+    push("");
+
+    // Per-project breakdown
+    const allProjects = [...new Set(state.files.map((f) => f.inferredProject ?? "unknown"))].sort();
+    const hasCategoryData = allProjects.some((proj) =>
+      state.files.some((f) => f.inferredProject === proj && f.inferredDocumentCategory)
+    );
+    if (hasCategoryData) {
+      push("| Project | RFQ | Quotation | Uncategorized | Total |");
+      push("|---------|-----|-----------|---------------|-------|");
+      for (const proj of allProjects) {
+        const projFiles = state.files.filter((f) => f.inferredProject === proj);
+        const rfqCount = projFiles.filter((f) => f.inferredDocumentCategory === "rfq").length;
+        const quotCount = projFiles.filter((f) => f.inferredDocumentCategory === "quotation").length;
+        const uncatCount = projFiles.filter((f) => f.inferredDocumentCategory === undefined).length;
+        push(`| ${proj} | ${rfqCount} | ${quotCount} | ${uncatCount} | ${projFiles.length} |`);
+      }
+      push("");
+    }
+
+    const rfqTotal = state.files.filter((f) => f.inferredDocumentCategory === "rfq").length;
+    const quotTotal = state.files.filter((f) => f.inferredDocumentCategory === "quotation").length;
+    const uncatTotal = state.files.filter((f) => f.inferredDocumentCategory === undefined).length;
+    push(`**Totals:** ${rfqTotal} RFQ, ${quotTotal} quotation, ${uncatTotal} uncategorized`);
+    if (uncatTotal > 0) {
+      push(`> ⚠️ **${uncatTotal} uncategorized files** — these did not match any known category folder pattern.`);
+      push(`> Check folder names: RFQ folders should match \`rfq\`, quotation folders should match \`quotation(s)\` or \`Angebot(e)\`.`);
+    }
+    push("");
+  }
 
   // Version chains
   push("## Version Chains Detected", "");
@@ -721,6 +784,13 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
 
   // Write Markdown
   const markdown = generateMarkdown(state, timestamp);
+  // FINDING-005: Content-leak guard for markdown — individual lines must not exceed 500 chars.
+  // (Prose lines in this report are < 300 chars; >500 indicates state-derived content leak.)
+  const longLine = markdown.split("\n").find((l) => l.length > 500);
+  if (longLine !== undefined) {
+    logger.error("Content leak guard triggered in markdown output", { lineLength: longLine.length, lineStart: longLine.slice(0, 40) });
+    throw new Error(`Markdown content-leak guard: line length ${longLine.length} > 500`);
+  }
   await writeFileAsync(mdPath, markdown, "utf-8");
   logger.info("Markdown report written", { path: mdPath });
 

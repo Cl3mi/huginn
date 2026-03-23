@@ -20,12 +20,17 @@ function getLogFilePath(): string {
   return logFilePath;
 }
 
+// Truncate log messages to 120 chars — prevents accidental content leakage
+function sanitizeMessage(msg: string): string {
+  return msg.length > 120 ? msg.slice(0, 117) + "..." : msg;
+}
+
 function log(level: LogLevel, message: string, data?: unknown): void {
   const entry = {
     timestamp: new Date().toISOString(),
     phase: currentPhase,
     level,
-    message,
+    message: sanitizeMessage(message),
     ...(data !== undefined ? { data } : {}),
   };
 
@@ -34,8 +39,8 @@ function log(level: LogLevel, message: string, data?: unknown): void {
 
   try {
     appendFileSync(getLogFilePath(), line + "\n");
-  } catch {
-    // Don't crash if log file write fails
+  } catch (e) {
+    process.stderr.write(`[logger] log file write failed: ${String(e)}\n`);
   }
 }
 

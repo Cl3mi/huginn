@@ -1,6 +1,7 @@
 import { createInitialState } from "./state.ts";
 import { CONFIG } from "./config.ts";
 import { logger, setPhase } from "./utils/logger.ts";
+import { stat } from "fs/promises";
 import { runRegexTests } from "./utils/regex-patterns.ts";
 import { checkTikaHealth } from "./parsers/tika.ts";
 import { checkOllamaHealth } from "./llm/ollama.ts";
@@ -14,13 +15,10 @@ import { runValidate } from "./phases/7-validate.ts";
 import { runReport } from "./phases/8-report.ts";
 import { randomUUID } from "crypto";
 
-// ============================================================
-// Startup self-test
-// ============================================================
 async function startupChecks(): Promise<{ tikaOk: boolean; ollamaOk: boolean }> {
   setPhase("startup");
 
-  // 1. Regex test suite — HARD GATE: abort if any fail
+  // HARD GATE: abort on regex failures
   logger.info("Running regex pattern test suite...");
   const regexResult = runRegexTests();
   if (!regexResult.passed) {
@@ -33,7 +31,6 @@ async function startupChecks(): Promise<{ tikaOk: boolean; ollamaOk: boolean }> 
   }
   logger.info("Regex test suite passed", { testedPatterns: regexResult.testedPatterns });
 
-  // 2. Tika health check
   logger.info("Checking Tika health...", { url: CONFIG.tikaUrl });
   const tikaOk = await checkTikaHealth();
   if (!tikaOk) {
@@ -42,7 +39,6 @@ async function startupChecks(): Promise<{ tikaOk: boolean; ollamaOk: boolean }> 
     logger.info("Tika is healthy");
   }
 
-  // 3. Ollama health check
   logger.info("Checking Ollama health...", { url: CONFIG.ollamaUrl });
   const { ok: ollamaOk, modelsAvailable } = await checkOllamaHealth();
   if (!ollamaOk) {
@@ -72,9 +68,6 @@ async function startupChecks(): Promise<{ tikaOk: boolean; ollamaOk: boolean }> 
   return { tikaOk, ollamaOk };
 }
 
-// ============================================================
-// Main
-// ============================================================
 async function main() {
   const scanId = `scan-${Date.now()}-${randomUUID().slice(0, 8)}`;
 
@@ -84,13 +77,20 @@ async function main() {
     reportOutput: CONFIG.reportOutput,
   });
 
-  // Startup checks
-  const { tikaOk, ollamaOk } = await startupChecks();
+  try {
+    const rootStat = await stat(CONFIG.documentsRoot);
+    if (!rootStat.isDirectory()) {
+      logger.error("DOCUMENTS_ROOT is not a directory — aborting", { path: CONFIG.documentsRoot });
+      process.exit(1);
+    }
+  } catch {
+    logger.error("DOCUMENTS_ROOT does not exist or is not accessible — aborting", { path: CONFIG.documentsRoot });
+    process.exit(1);
+  }
 
-  // Initialize state
+  const { tikaOk, ollamaOk } = await startupChecks();
   const state = createInitialState(scanId, CONFIG.documentsRoot);
 
-  // Run phases sequentially, catch errors and save partial state
   const phases: Array<{ name: string; fn: () => Promise<void> }> = [
     {
       name: "1-harvest",
