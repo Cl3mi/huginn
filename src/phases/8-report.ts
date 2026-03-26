@@ -355,6 +355,10 @@ function generateDecisions(state: ScannerState, push: (...l: string[]) => void):
 const MD_FILENAME_MAX = 80;
 const mdFilename = (name: string) => name.length > MD_FILENAME_MAX ? `${name.slice(0, MD_FILENAME_MAX - 1)}…` : name;
 
+const MD_PATH_MAX = 100;
+// Show the tail of the path — filename + nearest parent dirs are most useful for debugging
+const mdPath = (p: string) => p.length > MD_PATH_MAX ? `…${p.slice(-(MD_PATH_MAX - 1))}` : p;
+
 function generateMarkdown(state: ScannerState, timestamp: string): string {
   const lines: string[] = [];
   const push = (...l: string[]) => lines.push(...l);
@@ -734,7 +738,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   if (parseFailed.length > 0) {
     push(`**Parse failures (${parseFailed.length} files — likely password-protected or corrupt):**`);
     for (const d of parseFailed.slice(0, 20)) {
-      push(`- ${d.path} (${d.parseFailureReason ?? "empty_extraction"})`);
+      push(`- ${mdPath(d.path)} (${d.parseFailureReason ?? "empty_extraction"})`);
     }
     if (parseFailed.length > 20) push(`- ... and ${parseFailed.length - 20} more`);
     push("");
@@ -797,7 +801,22 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
 
   // Serialize state, then pre-truncate all strings before the guard.
   // deepTruncateStrings handles any field not explicitly sliced in serializeState.
-  const serialized = deepTruncateStrings(serializeState(state));
+  // If serializeState() itself throws (corrupted/partial state after a phase crash),
+  // fall back to a minimal emergency object so JSON output survives any phase failure.
+  let serialized: unknown;
+  try {
+    serialized = deepTruncateStrings(serializeState(state));
+  } catch (serErr) {
+    logger.error("serializeState() threw — using minimal emergency fallback", { error: String(serErr) });
+    serialized = {
+      scanId: state.scanId,
+      startedAt: state.startedAt.toISOString(),
+      emergencyFallback: true,
+      error: String(serErr).slice(0, CONFIG.maxStringLengthInReport),
+      filesHarvested: state.files.length,
+      filesParsed: state.parsed.length,
+    };
+  }
 
   // CRITICAL: hard content-leak guard (backstop — should never fire after deepTruncateStrings)
   try {
@@ -811,17 +830,20 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
   await writeFileAsync(jsonPath, JSON.stringify(serialized, null, 2), "utf-8");
   logger.info("JSON report written", { path: jsonPath });
 
-  // Write Markdown
-  const markdown = generateMarkdown(state, timestamp);
-  // FINDING-005: Content-leak guard for markdown — individual lines must not exceed 500 chars.
-  // (Prose lines in this report are < 300 chars; >500 indicates state-derived content leak.)
-  const longLine = markdown.split("\n").find((l) => l.length > 500);
-  if (longLine !== undefined) {
-    logger.error("Content leak guard triggered in markdown output", { lineLength: longLine.length, lineStart: longLine.slice(0, 40) });
-    throw new Error(`Markdown content-leak guard: line length ${longLine.length} > 500`);
+  // Write Markdown — non-fatal: if generation or the line guard fails, the JSON report is already safe.
+  try {
+    const markdown = generateMarkdown(state, timestamp);
+    // FINDING-005: Content-leak guard for markdown — individual lines must not exceed 500 chars.
+    // (Prose lines in this report are < 300 chars; >500 indicates state-derived content leak.)
+    const longLine = markdown.split("\n").find((l) => l.length > 500);
+    if (longLine !== undefined) {
+      throw new Error(`Markdown content-leak guard: line length ${longLine.length} > 500 — starts with: "${longLine.slice(0, 40)}"`);
+    }
+    await writeFileAsync(mdPath, markdown, "utf-8");
+    logger.info("Markdown report written", { path: mdPath });
+  } catch (mdErr) {
+    logger.warn("Markdown report generation failed — skipping (JSON report is safe)", { error: String(mdErr) });
   }
-  await writeFileAsync(mdPath, markdown, "utf-8");
-  logger.info("Markdown report written", { path: mdPath });
 
   logger.phaseEnd("8-report", t, { jsonPath, mdPath });
 
