@@ -35,7 +35,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
       value: 0,
       threshold: 1,
       severity: "CRITICAL",
-      interpretation: "No documents were parsed — DOCUMENTS_ROOT may be wrong or contain no supported file types. All downstream metrics are unreliable.",
+      interpretation: clamp("No documents were parsed — DOCUMENTS_ROOT may be wrong or contain no supported file types. All downstream metrics are unreliable."),
     });
     state.consistencyChecks = checks;
     logger.phaseEnd("7-validate", t, { totalChecks: 1, critical: 1, warnings: 0, passed: 0 });
