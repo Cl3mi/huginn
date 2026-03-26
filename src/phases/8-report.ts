@@ -9,8 +9,30 @@ import { runNarrative } from "./8-narrative.ts";
 const writeFileAsync = promisify(writeFile);
 
 // ============================================================
+// Pre-truncation pass — recursively clamps all strings in the
+// serialized object to ≤ MAX chars before the guard runs.
+// This makes the guard a true backstop rather than the first
+// line of defence, eliminating field-by-field whack-a-mole.
+// ============================================================
+function deepTruncateStrings(obj: unknown): unknown {
+  const MAX = CONFIG.maxStringLengthInReport;
+  if (typeof obj === "string") return obj.length > MAX ? obj.slice(0, MAX) : obj;
+  if (Array.isArray(obj)) return obj.map(deepTruncateStrings);
+  if (obj !== null && typeof obj === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = deepTruncateStrings(val);
+    }
+    return result;
+  }
+  return obj;
+}
+
+// ============================================================
 // CRITICAL: Hard content-leak guard
 // Any string in the report longer than MAX chars → throw Error
+// Runs after deepTruncateStrings — should never fire in normal
+// operation; exists as a backstop assertion.
 // ============================================================
 function sanitizeReport(obj: unknown, path = "root"): void {
   const MAX = CONFIG.maxStringLengthInReport;
@@ -773,10 +795,11 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
   const jsonPath = join(CONFIG.reportOutput, `scan-report-${timestamp}.json`);
   const mdPath = join(CONFIG.reportOutput, `scan-report-${timestamp}-human.md`);
 
-  // Serialize state
-  const serialized = serializeState(state);
+  // Serialize state, then pre-truncate all strings before the guard.
+  // deepTruncateStrings handles any field not explicitly sliced in serializeState.
+  const serialized = deepTruncateStrings(serializeState(state));
 
-  // CRITICAL: hard content-leak guard
+  // CRITICAL: hard content-leak guard (backstop — should never fire after deepTruncateStrings)
   try {
     sanitizeReport(serialized);
   } catch (e) {
