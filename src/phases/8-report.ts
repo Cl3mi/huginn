@@ -329,6 +329,10 @@ function generateDecisions(state: ScannerState, push: (...l: string[]) => void):
 // ============================================================
 // Markdown human report
 // ============================================================
+// Max filename length for markdown lines — keeps even multi-filename lines well under the 500-char guard.
+const MD_FILENAME_MAX = 80;
+const mdFilename = (name: string) => name.length > MD_FILENAME_MAX ? `${name.slice(0, MD_FILENAME_MAX - 1)}…` : name;
+
 function generateMarkdown(state: ScannerState, timestamp: string): string {
   const lines: string[] = [];
   const push = (...l: string[]) => lines.push(...l);
@@ -390,7 +394,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     push(`> ⚠️ **${dualCandidates.length} doc(s)** have a competing alternative strategy — consider dual-strategy chunking:`);
     for (const d of dualCandidates.slice(0, 5)) {
       const r = d.chunkStrategyReasoning;
-      push(`> - **${d.filename}**: ${r.recommended} (conf ${(r.confidence * 100).toFixed(0)}%) — alt: ${r.alternativeConsidered}: ${r.alternativeReason ?? ""}`);
+      push(`> - **${mdFilename(d.filename)}**: ${r.recommended} (conf ${(r.confidence * 100).toFixed(0)}%) — alt: ${r.alternativeConsidered}: ${r.alternativeReason ?? ""}`);
     }
     if (dualCandidates.length > 5) push(`> - ...and ${dualCandidates.length - 5} more`);
   }
@@ -506,7 +510,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     push("No version chains detected.");
   } else {
     for (const chain of state.versionChains) {
-      const docNames = chain.map((id) => state.parsed.find((d) => d.id === id)?.filename ?? id);
+      const docNames = chain.map((id) => mdFilename(state.parsed.find((d) => d.id === id)?.filename ?? id));
       push(`- ${docNames.join(" → ")}`);
     }
   }
@@ -519,8 +523,8 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     push("| Doc A | Doc B | Score | Newer | Flag |");
     push("|-------|-------|-------|-------|------|");
     for (const pair of highPairs.slice(0, 20)) {
-      const docA = state.parsed.find(d => d.id === pair.docA)?.filename ?? pair.docA;
-      const docB = state.parsed.find(d => d.id === pair.docB)?.filename ?? pair.docB;
+      const docA = mdFilename(state.parsed.find(d => d.id === pair.docA)?.filename ?? pair.docA);
+      const docB = mdFilename(state.parsed.find(d => d.id === pair.docB)?.filename ?? pair.docB);
       const flag = pair.versionPairFlag === "template_reuse_suspected" ? "⚠️ template reuse" : "";
       push(`| ${docA} | ${docB} | ${pair.score}/12 | ${pair.likelyNewer} | ${flag} |`);
     }
@@ -721,7 +725,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     push(`**Full OCR required (>50% pages scanned — ${fullOcrDocs.length} docs):**`);
     for (const d of fullOcrDocs.slice(0, 10)) {
       const ratio = ((d.scannedPageRatio ?? 0) * 100).toFixed(0);
-      push(`- ${d.filename} (${ratio}% scanned)`);
+      push(`- ${mdFilename(d.filename)} (${ratio}% scanned)`);
     }
     if (fullOcrDocs.length > 10) push(`- ...and ${fullOcrDocs.length - 10} more`);
     push("");
@@ -731,7 +735,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     for (const d of partialOcrDocs.slice(0, 10)) {
       const ratio = ((d.scannedPageRatio ?? 0) * 100).toFixed(0);
       const pages = d.scannedPageIndices ? `pages: ${d.scannedPageIndices.slice(0, 5).join(", ")}${d.scannedPageIndices.length > 5 ? ` +${d.scannedPageIndices.length - 5} more` : ""}` : "page indices unavailable";
-      push(`- ${d.filename} (${ratio}% scanned — ${pages})`);
+      push(`- ${mdFilename(d.filename)} (${ratio}% scanned — ${pages})`);
     }
     if (partialOcrDocs.length > 10) push(`- ...and ${partialOcrDocs.length - 10} more`);
     push("");
@@ -746,8 +750,8 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   if (templateReusePairs.length > 0) {
     push(`\n**Template reuse suspected (${templateReusePairs.length} pairs — manual review required):**`);
     for (const pair of templateReusePairs.slice(0, 10)) {
-      const docA = state.parsed.find(d => d.id === pair.docA)?.filename ?? pair.docA;
-      const docB = state.parsed.find(d => d.id === pair.docB)?.filename ?? pair.docB;
+      const docA = mdFilename(state.parsed.find(d => d.id === pair.docA)?.filename ?? pair.docA);
+      const docB = mdFilename(state.parsed.find(d => d.id === pair.docB)?.filename ?? pair.docB);
       push(`- ${docA} ↔ ${docB} (score ${pair.score}/12, ${pair.confidence})`);
     }
   }
