@@ -142,13 +142,13 @@ function serializeState(state: ScannerState): unknown {
     parseHealth: {
       failedFiles: state.parsed
         .filter((d) => !d.parseSuccess)
-        .map((d) => ({ id: d.id, path: d.path, reason: d.parseFailureReason ?? "unknown" })),
+        .map((d) => ({ id: d.id, path: d.path.slice(0, CONFIG.maxStringLengthInReport), reason: d.parseFailureReason ?? "unknown" })),
     },
     folderStructureInference: state.folderStructureInference,
     files: state.files.map((f) => ({
       id: f.id,
-      path: f.path,
-      filename: f.filename,
+      path: f.path.slice(0, CONFIG.maxStringLengthInReport),
+      filename: f.filename.slice(0, CONFIG.maxStringLengthInReport),
       extension: f.extension,
       sizeBytes: f.sizeBytes,
       sha256: f.sha256,
@@ -160,7 +160,7 @@ function serializeState(state: ScannerState): unknown {
     })),
     parsed: state.parsed.map((d) => ({
       id: d.id,
-      filename: d.filename,
+      filename: d.filename.slice(0, CONFIG.maxStringLengthInReport),
       charCount: d.charCount,
       tokenCountEstimate: d.tokenCountEstimate,
       pageCount: d.pageCount,
@@ -397,7 +397,9 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   push("");
   const unreliableReqDocs = state.parsed.filter(d => !d.requirementMetadataReliable && d.requirementQuality && d.requirementQuality.raw > 0);
   if (unreliableReqDocs.length > 0) {
-    push(`> ⚠️ **${unreliableReqDocs.length} document(s)** have requirement-type keywords but are NOT reliable for requirement metadata (wrong doc type). Do not use MUSS/SOLL/KANN as retrieval filter for: ${unreliableReqDocs.map(d => d.filename).join(", ")}`);
+    const shownUnreliable = unreliableReqDocs.slice(0, 5).map(d => d.filename.slice(0, 60));
+    const moreUnreliable = unreliableReqDocs.length > 5 ? ` …+${unreliableReqDocs.length - 5} more` : "";
+    push(`> ⚠️ **${unreliableReqDocs.length} document(s)** have requirement-type keywords but are NOT reliable for requirement metadata (wrong doc type). Do not use MUSS/SOLL/KANN as retrieval filter for: ${shownUnreliable.join(", ")}${moreUnreliable}`);
     push("");
   }
 
