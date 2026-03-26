@@ -1,20 +1,26 @@
 services:
   tika:
     image: apache/tika:latest
+    hostname: tika
     ports:
       - "9998:9998"
     restart: unless-stopped
+    networks:
+      - huginn
     # No Docker healthcheck — the JRE base image has no curl/wget.
     # The scanner performs its own Tika health check at startup and
     # skips PDF parsing gracefully if Tika is unreachable.
 
   ollama:
     image: ollama/ollama:latest
+    hostname: ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
+    networks:
+      - huginn
     healthcheck:
       test: ["CMD", "ollama", "list"]
       interval: 10s
@@ -37,6 +43,8 @@ services:
     command:
       - "ollama pull nomic-embed-text && ollama pull llama3.1:8b"
     restart: "no"
+    networks:
+      - huginn
 
   scanner:
     build:
@@ -59,6 +67,12 @@ services:
       - REPORT_OUTPUT=/reports
       - LLM_SAMPLE_RATE=0.05
     command: bun run src/index.ts
+    networks:
+      - huginn
 
 volumes:
   ollama_data:
+
+networks:
+  huginn:
+    driver: bridge
