@@ -23,13 +23,13 @@ function parseArgs(): CliArgs {
     process.exit(1);
   }
 
-  const reportPath = args[0];
+  const reportPath = args[0] ?? '';
   let outputPath = reportPath.replace(/\.json$/, '.html');
   let inlineAssets = true;
 
   for (let i = 1; i < args.length; i++) {
     if ((args[i] === '--output' || args[i] === '-o') && i + 1 < args.length) {
-      outputPath = args[++i];
+      outputPath = args[++i] ?? outputPath;
     } else if (args[i] === '--no-inline-assets') {
       inlineAssets = false;
     }

@@ -30,9 +30,9 @@ function parseArgs(): CliArgs {
 
   for (let i = 0; i < args.length; i++) {
     if ((args[i] === '--port' || args[i] === '-p') && i + 1 < args.length) {
-      port = parseInt(args[++i], 10);
+      port = parseInt(args[++i] ?? '3000', 10);
     } else if ((args[i] === '--reports' || args[i] === '-r') && i + 1 < args.length) {
-      reportsDir = args[++i];
+      reportsDir = args[++i] ?? reportsDir;
     } else if (args[i] === '--watch' || args[i] === '-w') {
       watch = true;
     }
@@ -53,29 +53,28 @@ function listReports(dir: string): ReportMeta[] {
     (f) => f.endsWith('.json') && f.startsWith('scan-report') && !f.includes('human') && !f.includes('narrative'),
   );
 
-  return files
-    .map((filename) => {
-      const path = join(dir, filename);
-      try {
-        const raw = readFileSync(path, 'utf-8');
-        const report = JSON.parse(raw) as Record<string, unknown>;
-        const summary = (report.summary as Record<string, unknown>) || {};
-        const stat = statSync(path);
-        return {
-          filename,
-          scanId: (report.scanId as string) || filename,
-          timestamp: (report.timestamp as string) || '',
-          totalFiles: (summary.totalFiles as number) || 0,
-          parsedFiles: (summary.parsedFiles as number) || 0,
-          mqScore: (summary.mqScore as number) ?? null,
-          sizeKb: Math.round(stat.size / 1024),
-        };
-      } catch {
-        return null;
-      }
-    })
-    .filter((r): r is ReportMeta => r !== null)
-    .sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const results: ReportMeta[] = [];
+  for (const filename of files) {
+    const path = join(dir, filename);
+    try {
+      const raw = readFileSync(path, 'utf-8');
+      const report = JSON.parse(raw) as Record<string, unknown>;
+      const summary = (report.summary as Record<string, unknown>) || {};
+      const st = statSync(path);
+      results.push({
+        filename,
+        scanId: (report.scanId as string) || filename,
+        timestamp: (report.timestamp as string) || '',
+        totalFiles: (summary.totalFiles as number) || 0,
+        parsedFiles: (summary.parsedFiles as number) || 0,
+        mqScore: (summary.mqScore as number | null) ?? null,
+        sizeKb: Math.round(st.size / 1024),
+      });
+    } catch {
+      // skip unparseable files
+    }
+  }
+  return results.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
 }
 
 async function generateReportHtml(reportPath: string): Promise<string> {

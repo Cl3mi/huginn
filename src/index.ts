@@ -151,6 +151,38 @@ async function main() {
     versionPairs: state.versionPairs.length,
     requirements: state.requirements.length,
   });
+
+  // Optional dashboard generation (set GENERATE_DASHBOARD=1)
+  if (process.env["GENERATE_DASHBOARD"] === "1") {
+    try {
+      setPhase("dashboard");
+      const { join } = await import("path");
+      const { generateDashboard } = await import("./dashboard/cli-generate.js");
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const jsonPath = join(CONFIG.reportOutput, `scan-report-${timestamp}.json`);
+
+      // Find latest JSON report in output directory
+      const { readdirSync } = await import("fs");
+      const jsonFiles = readdirSync(CONFIG.reportOutput)
+        .filter((f) => f.startsWith("scan-report-") && f.endsWith(".json") && !f.includes("human") && !f.includes("narrative"))
+        .sort()
+        .reverse();
+
+      if (jsonFiles.length === 0) {
+        logger.warn("Dashboard: no JSON report found to visualize");
+      } else {
+        const latestJson = join(CONFIG.reportOutput, jsonFiles[0]!);
+        const dashboardPath = latestJson.replace(".json", ".html");
+        logger.info("Generating dashboard...", { source: jsonFiles[0] });
+        const { sizeKb } = await generateDashboard(latestJson, dashboardPath, true);
+        logger.info("Dashboard generated", { path: dashboardPath, sizeKb });
+        console.log(`\n📊 Dashboard: file://${dashboardPath}  (${sizeKb} KB)`);
+      }
+    } catch (dashErr) {
+      logger.warn("Dashboard generation failed (non-fatal)", { error: String(dashErr) });
+    }
+  }
 }
 
 main().catch((e) => {

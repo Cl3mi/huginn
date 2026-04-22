@@ -117,7 +117,7 @@
 
 ---
 
-## Phase 6: Integration & Testing (FINAL)
+## Phase 6: Integration & Testing ✓ COMPLETED
 **Objective:** Integrate with scanner pipeline
 
 ### Tasks:
@@ -188,12 +188,12 @@ bun run dashboard:generate <(echo '{ ... sample report JSON ... }') --output /tm
 
 ## Progress Tracking
 
-- **Phase 0**: DONE ✓ (2026-04-22)
-- **Phase 1**: TODO (estimated 3-4 hours)
-- **Phase 2**: TODO (estimated 4-5 hours)
-- **Phase 3**: TODO (estimated 3-4 hours)
-- **Phase 4**: TODO (estimated 2-3 hours)
-- **Phase 5**: TODO (estimated 2-3 hours)
-- **Phase 6**: TODO (estimated 2-3 hours)
+- **Phase 0**: DONE ✓ (2026-04-22) — Scaffolding, dependencies, theme
+- **Phase 1**: DONE ✓ (2026-04-22) — Header, KPI cards, footer
+- **Phase 2**: DONE ✓ (2026-04-22) — Quality gauge, distribution charts, parse health
+- **Phase 3**: DONE ✓ (2026-04-22) — Version analysis, requirements, references, RAG checks
+- **Phase 4**: DONE ✓ (2026-04-22) — HTTP server, multi-report browsing
+- **Phase 5**: DONE ✓ (2026-04-22) — Offline inline assets, table search/filter
+- **Phase 6**: DONE ✓ (2026-04-22) — Pipeline integration (GENERATE_DASHBOARD=1), typecheck clean
 
 **Total Estimated Time:** 18-24 hours of implementation
