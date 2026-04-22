@@ -165,7 +165,142 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
     /* Charts */
     canvas {
       max-height: 300px;
-      margin: 1rem 0;
+      margin: 1rem auto;
+      display: block;
+    }
+
+    .distribution-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+      gap: 1.5rem;
+    }
+
+    .chart-container {
+      background-color: ${COLORS.background};
+      padding: 1rem;
+      border-radius: 4px;
+      border: 1px solid ${COLORS.border};
+    }
+
+    .chart-container h3 {
+      font-size: 0.95em;
+      margin: 0 0 1rem 0;
+      color: ${COLORS.textSecondary};
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* Parse Health */
+    .parse-health-metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .parse-metric {
+      background-color: ${COLORS.background};
+      padding: 1rem;
+      border-radius: 4px;
+      border: 1px solid ${COLORS.border};
+    }
+
+    .metric-label {
+      font-size: 0.85em;
+      color: ${COLORS.textSecondary};
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 0.75em;
+    }
+
+    .metric-gauge {
+      height: 24px;
+      background-color: ${COLORS.border};
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 0.75em;
+    }
+
+    .gauge-bar {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    .metric-value {
+      font-family: ${FONTS.mono};
+      font-size: 1.2em;
+      font-weight: 700;
+      color: ${COLORS.accent.orange};
+    }
+
+    .parse-summary {
+      background-color: ${COLORS.background};
+      padding: 1rem;
+      border-radius: 4px;
+      border-left: 3px solid ${COLORS.accent.orange};
+    }
+
+    .parse-summary h3 {
+      margin: 0 0 1rem 0;
+    }
+
+    .parse-summary ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .parse-summary li {
+      padding: 0.5em 0;
+      font-size: 0.95em;
+    }
+
+    /* Gauge Layout */
+    .gauge-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      align-items: start;
+    }
+
+    .gauge-chart {
+      position: relative;
+      padding: 1rem;
+    }
+
+    .gauge-center {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .gauge-score {
+      font-family: ${FONTS.mono};
+      font-size: 2em;
+      font-weight: 700;
+      color: ${COLORS.accent.green};
+    }
+
+    .gauge-label {
+      font-size: 0.8em;
+      color: ${COLORS.textSecondary};
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .gauge-components h3 {
+      font-size: 1em;
+      margin: 0 0 1rem 0;
+    }
+
+    .color-swatch {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      margin-right: 0.5em;
     }
 
     /* Tables */

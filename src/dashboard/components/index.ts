@@ -4,6 +4,9 @@
 import { renderHeader } from './header.js';
 import { renderKpiCards } from './kpi-cards.js';
 import { renderFooter } from './footer.js';
+import { renderQualityGauge } from './quality-gauge.js';
+import { renderDocumentDistribution } from './document-distribution.js';
+import { renderParseHealth } from './parse-health.js';
 
 export interface ReportData {
   scanId: string;
@@ -23,24 +26,8 @@ export interface ReportData {
   consistencyChecks?: Record<string, { value: number; threshold?: number; pass?: boolean }>;
 }
 
-export { renderHeader, renderKpiCards, renderFooter };
+export { renderHeader, renderKpiCards, renderFooter, renderQualityGauge, renderDocumentDistribution, renderParseHealth };
 
-// Phase 2-3 component stubs (to be implemented)
-export async function renderQualityGauge(data: ReportData): Promise<string> {
-  return `<section class="quality-gauge">
-    <h2>Data Quality Assessment</h2>
-    <canvas id="quality-chart"></canvas>
-    <p class="placeholder">[Phase 2: MQ gauge chart]</p>
-  </section>`;
-}
-
-export async function renderDocumentDistribution(data: ReportData): Promise<string> {
-  return `<section class="document-distribution">
-    <h2>Document Distribution & Metadata</h2>
-    <canvas id="distribution-chart"></canvas>
-    <p class="placeholder">[Phase 2: Metadata charts]</p>
-  </section>`;
-}
 
 export async function renderVersionAnalysis(data: ReportData): Promise<string> {
   return `<section class="version-analysis">
@@ -68,13 +55,6 @@ export async function renderReferenceGraph(data: ReportData): Promise<string> {
   </section>`;
 }
 
-export async function renderParseHealth(data: ReportData): Promise<string> {
-  return `<section class="parse-health">
-    <h2>Parse Health & OCR Status</h2>
-    <canvas id="parse-health-chart"></canvas>
-    <p class="placeholder">[Phase 2: Parse health chart]</p>
-  </section>`;
-}
 
 export async function renderRagDecisions(data: ReportData): Promise<string> {
   return `<section class="rag-decisions">
