@@ -481,27 +481,175 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
       border-top: 1px solid ${COLORS.border};
     }
 
+    /* Requirements */
+    .req-summary {
+      margin-bottom: 1.5rem;
+      color: ${COLORS.textSecondary};
+      font-size: 0.9em;
+    }
+
+    .req-total {
+      font-family: ${FONTS.mono};
+    }
+
+    /* Version Analysis */
+    .version-summary {
+      margin-bottom: 1.5rem;
+      color: ${COLORS.textSecondary};
+      font-size: 0.9em;
+    }
+
+    .version-count {
+      font-family: ${FONTS.mono};
+    }
+
+    .pairs-table {
+      margin-top: 1.5rem;
+    }
+
+    .pairs-table h3 {
+      font-size: 1em;
+      margin: 0 0 1rem 0;
+    }
+
+    .score-badge {
+      display: inline-block;
+      padding: 0.2em 0.6em;
+      border-radius: 3px;
+      font-family: ${FONTS.mono};
+      font-size: 0.85em;
+      font-weight: 700;
+    }
+
+    .score-badge.score-high  { background: #43a047; color: #fff; }
+    .score-badge.score-medium { background: #ff6b35; color: #fff; }
+    .score-badge.score-low   { background: #607d8b; color: #fff; }
+
+    .doc-name {
+      font-family: ${FONTS.mono};
+      font-size: 0.85em;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .chain-viz {
+      overflow-x: auto;
+      min-height: 60px;
+    }
+
+    .no-data {
+      color: ${COLORS.textSecondary};
+      font-style: italic;
+      padding: 1rem;
+    }
+
+    /* Reference Graph */
+    .ref-overview {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 2rem;
+      align-items: start;
+      margin-bottom: 1.5rem;
+    }
+
+    .ref-resolution-gauge {
+      background-color: ${COLORS.background};
+      padding: 1rem;
+      border-radius: 4px;
+      border: 1px solid ${COLORS.border};
+    }
+
+    .ref-counts {
+      font-size: 0.8em;
+      color: ${COLORS.textSecondary};
+      margin-top: 0.5em;
+    }
+
+    .norm-badges-container h3 {
+      font-size: 0.95em;
+      margin: 0 0 0.75rem 0;
+      color: ${COLORS.textSecondary};
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .norm-badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    .norm-badge {
+      background-color: ${COLORS.background};
+      border: 1px solid ${COLORS.accent.blue};
+      color: ${COLORS.accent.blue};
+      padding: 0.25em 0.75em;
+      border-radius: 3px;
+      font-family: ${FONTS.mono};
+      font-size: 0.8em;
+    }
+
+    /* Safety badge */
+    .safety-badge {
+      background-color: rgba(211, 47, 47, 0.15);
+      border: 1px solid ${COLORS.accent.red};
+      border-left: 4px solid ${COLORS.accent.red};
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      margin-bottom: 1.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .safety-icon {
+      color: ${COLORS.accent.red};
+      font-size: 1.2em;
+    }
+
+    .safety-text {
+      color: ${COLORS.accent.red};
+      font-weight: 600;
+      font-family: ${FONTS.mono};
+      font-size: 0.9em;
+    }
+
+    /* Consistency checks */
+    .consistency-summary {
+      background-color: ${COLORS.background};
+      border-left: 4px solid ${COLORS.accent.green};
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-family: ${FONTS.mono};
+      font-size: 0.9em;
+    }
+
+    .consistency-table { margin-top: 0; }
+
+    .check-desc {
+      font-size: 0.85em;
+      color: ${COLORS.textSecondary};
+      font-weight: 400;
+      font-family: ${FONTS.sans};
+    }
+
     /* Responsive */
     @media (max-width: 640px) {
-      .container {
-        padding: 1rem;
-      }
-
-      section {
-        padding: 1rem;
-      }
-
-      .kpi-cards {
-        grid-template-columns: 1fr;
-      }
-
-      table {
-        font-size: 0.8em;
-      }
-
-      th, td {
-        padding: 0.5rem;
-      }
+      .container { padding: 1rem; }
+      section { padding: 1rem; }
+      .kpi-cards { grid-template-columns: 1fr; }
+      .gauge-container { grid-template-columns: 1fr; }
+      .ref-overview { grid-template-columns: 1fr; }
+      .dashboard-header { flex-direction: column; }
+      .header-metrics { justify-content: flex-start; }
+      table { font-size: 0.8em; }
+      th, td { padding: 0.5rem; }
     }
 
     /* Print styles */
