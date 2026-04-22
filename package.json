@@ -7,12 +7,16 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "dashboard:generate": "bun run src/dashboard/cli-generate.ts",
+    "dashboard:serve": "bun run src/dashboard/cli-serve.ts"
   },
   "dependencies": {
     "officeparser": "^4.1.0",
     "franc": "^6.2.0",
-    "glob": "^11.0.0"
+    "glob": "^11.0.0",
+    "chart.js": "^4.4.0",
+    "d3": "^7.8.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
