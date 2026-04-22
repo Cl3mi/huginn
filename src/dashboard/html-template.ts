@@ -67,6 +67,14 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
       border-left: 4px solid ${COLORS.accent.orange};
       padding: 2rem;
       margin-bottom: 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 2rem;
+    }
+
+    .header-content {
+      flex: 1;
     }
 
     .dashboard-header h1 {
@@ -80,6 +88,43 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
       color: ${COLORS.textSecondary};
       font-size: 0.9em;
       margin-top: 0.5rem;
+    }
+
+    .header-metrics {
+      display: flex;
+      gap: 1rem;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .mq-badge, .parse-badge {
+      background-color: ${COLORS.surface};
+      border: 1px solid ${COLORS.border};
+      padding: 1rem;
+      border-radius: 4px;
+      min-width: 140px;
+      text-align: center;
+    }
+
+    .mq-badge {
+      border-left: 3px solid ${COLORS.accent.orange};
+    }
+
+    .mq-label, .parse-label {
+      display: block;
+      font-size: 0.75em;
+      text-transform: uppercase;
+      color: ${COLORS.textSecondary};
+      letter-spacing: 1px;
+      margin-bottom: 0.5em;
+    }
+
+    .mq-value, .parse-value {
+      display: block;
+      font-family: ${FONTS.mono};
+      font-size: 1.5em;
+      font-weight: 700;
+      color: white;
     }
 
     /* KPI Cards */
@@ -221,14 +266,83 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
       display: block;
     }
 
+    /* Buttons */
+    .btn {
+      display: inline-block;
+      padding: 0.5em 1.5em;
+      margin: 0.5em 0.5em 0.5em 0;
+      border: 1px solid ${COLORS.border};
+      border-radius: 4px;
+      background-color: ${COLORS.surface};
+      color: ${COLORS.text};
+      font-family: ${FONTS.mono};
+      font-size: 0.9em;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn:hover {
+      background-color: ${COLORS.border};
+      border-color: ${COLORS.accent.orange};
+    }
+
+    .btn-secondary {
+      border-color: ${COLORS.textSecondary};
+      color: ${COLORS.textSecondary};
+    }
+
+    .btn-secondary:hover {
+      color: ${COLORS.accent.orange};
+      border-color: ${COLORS.accent.orange};
+    }
+
+    /* Placeholders for phase stubs */
+    .placeholder {
+      padding: 1.5rem;
+      background-color: ${COLORS.background};
+      border-left: 3px solid ${COLORS.border};
+      color: ${COLORS.textSecondary};
+      font-size: 0.85em;
+      font-style: italic;
+      margin: 1rem 0;
+    }
+
     /* Footer */
     .dashboard-footer {
       background-color: ${COLORS.background};
-      text-align: center;
       color: ${COLORS.textSecondary};
       font-size: 0.85em;
-      padding: 1.5rem;
+      padding: 2rem;
       margin-top: 3rem;
+      border-top: 1px solid ${COLORS.border};
+    }
+
+    .footer-content {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .footer-credit {
+      font-weight: 600;
+      color: ${COLORS.text};
+      margin-bottom: 0.25em;
+    }
+
+    .footer-scan-id code {
+      font-family: ${FONTS.mono};
+      color: ${COLORS.accent.orange};
+      background-color: ${COLORS.surface};
+      padding: 0.25em 0.5em;
+      border-radius: 2px;
+    }
+
+    .footer-actions {
+      text-align: center;
+      padding-top: 1rem;
       border-top: 1px solid ${COLORS.border};
     }
 
@@ -285,11 +399,22 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
     ${reportJson}
   </script>
 
-  <!-- Chart.js (will be embedded in subsequent phase) -->
+  <!-- Chart.js Library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script>
-    // Placeholder for Chart.js initialization
-    // Phase 1 will add actual chart rendering logic here
-    console.log('Dashboard loaded');
+    // Chart.js initialization placeholder
+    // Phase 2 will implement actual chart rendering
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const reportData = JSON.parse(document.getElementById('report-data').textContent);
+      console.log('Dashboard loaded with report:', reportData.scanId);
+
+      // Chart initialization will happen here in Phase 2
+      // For now, just verify data is loaded
+      if (reportData && reportData.summary) {
+        console.log('Summary:', reportData.summary);
+      }
+    });
   </script>
 </body>
 </html>`;
