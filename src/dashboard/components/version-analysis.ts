@@ -59,7 +59,11 @@ export async function renderVersionAnalysis(data: ReportData): Promise<string> {
     </div>
     <div class="pairs-table">
       <h3>HIGH Confidence Pairs</h3>
-      <table>
+      <div class="table-search-wrap">
+        <input class="table-search" type="search" placeholder="Filter pairs…" data-table="pairs-table-data">
+        <span class="table-search-count"></span>
+      </div>
+      <table id="pairs-table-data">
         <thead>
           <tr>
             <th>Score</th>

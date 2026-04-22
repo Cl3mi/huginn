@@ -87,7 +87,11 @@ export async function renderRagDecisions(data: ReportData): Promise<string> {
     </div>
     ${
       rows
-        ? `<table class="consistency-table">
+        ? `<div class="table-search-wrap">
+        <input class="table-search" type="search" placeholder="Filter checks…" data-table="consistency-table-data">
+        <span class="table-search-count"></span>
+      </div>
+      <table id="consistency-table-data" class="consistency-table">
         <thead>
           <tr>
             <th>Check</th>

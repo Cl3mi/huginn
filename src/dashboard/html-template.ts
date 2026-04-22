@@ -3,7 +3,11 @@
 
 import { COLORS, FONTS } from './lib/chart-config.js';
 
-export function generateHtmlTemplate(reportJson: string, bodyContent: string): string {
+export function generateHtmlTemplate(reportJson: string, bodyContent: string, chartJsSource?: string): string {
+  const chartJsTag = chartJsSource
+    ? `<script>${chartJsSource}</script>`
+    : `<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <!-- NOTE: CDN fallback — run with --inline-assets for fully offline output -->`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -652,6 +656,38 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
       th, td { padding: 0.5rem; }
     }
 
+    /* Table search */
+    .table-search-wrap {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-bottom: 1rem;
+    }
+
+    .table-search {
+      background: ${COLORS.background};
+      border: 1px solid ${COLORS.border};
+      border-radius: 4px;
+      color: ${COLORS.text};
+      font-family: ${FONTS.mono};
+      font-size: .85em;
+      padding: .4em .8em;
+      width: 280px;
+      outline: none;
+    }
+
+    .table-search:focus {
+      border-color: ${COLORS.accent.orange};
+    }
+
+    .table-search-count {
+      font-size: .8em;
+      color: ${COLORS.textSecondary};
+      font-family: ${FONTS.mono};
+    }
+
+    .row-hidden { display: none; }
+
     /* Print styles */
     @media print {
       body {
@@ -669,6 +705,8 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
         background: white;
         border-left-color: #333;
       }
+
+      .btn, .table-search-wrap { display: none; }
     }
   </style>
 </head>
@@ -683,20 +721,36 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string): s
   </script>
 
   <!-- Chart.js Library -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  ${chartJsTag}
   <script>
-    // Chart.js initialization placeholder
-    // Phase 2 will implement actual chart rendering
-
+    // Global table search — wire up all .table-search inputs
     document.addEventListener('DOMContentLoaded', function() {
-      const reportData = JSON.parse(document.getElementById('report-data').textContent);
-      console.log('Dashboard loaded with report:', reportData.scanId);
+      document.querySelectorAll('.table-search').forEach(function(input) {
+        const tableId = input.dataset.table;
+        const countEl = input.closest('.table-search-wrap')?.querySelector('.table-search-count');
+        const table = document.getElementById(tableId);
+        if (!table) return;
 
-      // Chart initialization will happen here in Phase 2
-      // For now, just verify data is loaded
-      if (reportData && reportData.summary) {
-        console.log('Summary:', reportData.summary);
-      }
+        function filterTable() {
+          const q = input.value.toLowerCase().trim();
+          const rows = table.querySelectorAll('tbody tr');
+          let visible = 0;
+          rows.forEach(function(row) {
+            const text = row.textContent.toLowerCase();
+            const show = !q || text.includes(q);
+            row.classList.toggle('row-hidden', !show);
+            if (show) visible++;
+          });
+          if (countEl) {
+            countEl.textContent = q ? visible + ' of ' + rows.length + ' rows' : rows.length + ' rows';
+          }
+        }
+
+        input.addEventListener('input', filterTable);
+        // Initialize count
+        const rows = table.querySelectorAll('tbody tr').length;
+        if (countEl) countEl.textContent = rows + ' rows';
+      });
     });
   </script>
 </body>

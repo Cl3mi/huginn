@@ -1,9 +1,10 @@
 #!/usr/bin/env bun
 // CLI entry point: generates static HTML from JSON report
-// Usage: bun run dashboard:generate <report.json> [--output <file.html>]
+// Usage: bun run dashboard:generate <report.json> [--output <file.html>] [--no-inline-assets]
 
-import { readFileSync, writeFileSync } from 'fs';
-import { resolve, basename } from 'path';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { resolve, dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import { generateHtmlTemplate } from './html-template.js';
 import { validateReport } from './lib/validate.js';
 import * as components from './components/index.js';
@@ -11,92 +12,110 @@ import * as components from './components/index.js';
 interface CliArgs {
   reportPath: string;
   outputPath: string;
+  inlineAssets: boolean;
 }
 
 function parseArgs(): CliArgs {
   const args = process.argv.slice(2);
 
   if (args.length === 0) {
-    console.error('Usage: bun run dashboard:generate <report.json> [--output <file.html>]');
+    console.error('Usage: bun run dashboard:generate <report.json> [--output <file.html>] [--no-inline-assets]');
     process.exit(1);
   }
 
   const reportPath = args[0];
-  let outputPath = reportPath.replace('.json', '.html');
+  let outputPath = reportPath.replace(/\.json$/, '.html');
+  let inlineAssets = true;
 
   for (let i = 1; i < args.length; i++) {
-    if (args[i] === '--output' && i + 1 < args.length) {
-      outputPath = args[i + 1];
+    if ((args[i] === '--output' || args[i] === '-o') && i + 1 < args.length) {
+      outputPath = args[++i];
+    } else if (args[i] === '--no-inline-assets') {
+      inlineAssets = false;
     }
   }
 
-  return { reportPath, outputPath };
+  return { reportPath, outputPath, inlineAssets };
+}
+
+function loadChartJs(): string | undefined {
+  // Resolve path relative to this file's location
+  const thisDir = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    join(thisDir, '../../node_modules/chart.js/dist/chart.umd.min.js'),
+    join(process.cwd(), 'node_modules/chart.js/dist/chart.umd.min.js'),
+  ];
+
+  for (const path of candidates) {
+    if (existsSync(path)) {
+      return readFileSync(path, 'utf-8');
+    }
+  }
+
+  console.warn('⚠ chart.js not found in node_modules — falling back to CDN (requires internet)');
+  return undefined;
+}
+
+export async function renderHtml(reportPath: string, inlineAssets = true): Promise<string> {
+  const jsonRaw = readFileSync(reportPath, 'utf-8');
+  const reportData = JSON.parse(jsonRaw);
+
+  const validation = validateReport(reportData);
+  if (!validation.valid) {
+    throw new Error(`Report validation failed:\n${validation.errors.map((e) => `  - ${e}`).join('\n')}`);
+  }
+
+  const [header, kpiCards, qualityGauge, docDistribution, versionAnalysis, requirementsLandscape, referenceGraph, parseHealth, ragDecisions, footer] =
+    await Promise.all([
+      components.renderHeader(reportData),
+      components.renderKpiCards(reportData),
+      components.renderQualityGauge(reportData),
+      components.renderDocumentDistribution(reportData),
+      components.renderVersionAnalysis(reportData),
+      components.renderRequirementsLandscape(reportData),
+      components.renderReferenceGraph(reportData),
+      components.renderParseHealth(reportData),
+      components.renderRagDecisions(reportData),
+      components.renderFooter(reportData),
+    ]);
+
+  const bodyContent = [header, kpiCards, qualityGauge, docDistribution, versionAnalysis, requirementsLandscape, referenceGraph, parseHealth, ragDecisions, footer].join(
+    '\n',
+  );
+
+  const chartJsSource = inlineAssets ? loadChartJs() : undefined;
+  return generateHtmlTemplate(jsonRaw, bodyContent, chartJsSource);
+}
+
+export async function generateDashboard(
+  reportPath: string,
+  outputPath: string,
+  inlineAssets = true,
+): Promise<{ html: string; sizeKb: string }> {
+  const html = await renderHtml(reportPath, inlineAssets);
+  const sizeKb = (html.length / 1024).toFixed(1);
+  writeFileSync(resolve(outputPath), html, 'utf-8');
+  return { html, sizeKb };
 }
 
 async function main() {
-  const { reportPath, outputPath } = parseArgs();
+  const { reportPath, outputPath, inlineAssets } = parseArgs();
 
   try {
-    // Read and validate JSON
     console.log(`📖 Reading report: ${reportPath}`);
-    const jsonRaw = readFileSync(reportPath, 'utf-8');
-    const reportData = JSON.parse(jsonRaw);
+    console.log(`🎨 Rendering dashboard (${inlineAssets ? 'offline/inline' : 'CDN'} mode)...`);
 
-    const validation = validateReport(reportData);
-    if (!validation.valid) {
-      console.error('❌ Report validation failed:');
-      validation.errors.forEach(err => console.error(`   - ${err}`));
-      process.exit(2);
-    }
+    const { sizeKb } = await generateDashboard(reportPath, outputPath, inlineAssets);
 
-    console.log('✓ Report validation passed');
-
-    // Render components
-    console.log('🎨 Rendering dashboard components...');
-    const header = await components.renderHeader(reportData);
-    const kpiCards = await components.renderKpiCards(reportData);
-    const qualityGauge = await components.renderQualityGauge(reportData);
-    const docDistribution = await components.renderDocumentDistribution(reportData);
-    const versionAnalysis = await components.renderVersionAnalysis(reportData);
-    const requirementsLandscape = await components.renderRequirementsLandscape(reportData);
-    const referenceGraph = await components.renderReferenceGraph(reportData);
-    const parseHealth = await components.renderParseHealth(reportData);
-    const ragDecisions = await components.renderRagDecisions(reportData);
-    const footer = await components.renderFooter(reportData);
-
-    const bodyContent = [
-      header,
-      kpiCards,
-      qualityGauge,
-      docDistribution,
-      versionAnalysis,
-      requirementsLandscape,
-      referenceGraph,
-      parseHealth,
-      ragDecisions,
-      footer,
-    ].join('\n');
-
-    // Generate HTML with embedded JSON
-    const html = generateHtmlTemplate(jsonRaw, bodyContent);
-
-    // Write file
     const absolutePath = resolve(outputPath);
-    writeFileSync(absolutePath, html, 'utf-8');
-
-    const sizeKb = (html.length / 1024).toFixed(1);
     console.log(`✓ Dashboard generated: ${absolutePath}`);
-    console.log(`  Size: ${sizeKb} KB`);
+    console.log(`  Size: ${sizeKb} KB${inlineAssets ? ' (includes Chart.js)' : ''}`);
     console.log(`\n  Open in browser: file://${absolutePath}`);
 
     process.exit(0);
   } catch (error) {
-    if (error instanceof Error) {
-      console.error(`❌ Error: ${error.message}`);
-    } else {
-      console.error('❌ Unknown error occurred');
-    }
-    process.exit(3);
+    console.error(`❌ ${error instanceof Error ? error.message : 'Unknown error'}`);
+    process.exit(error instanceof Error && error.message.startsWith('Report validation') ? 2 : 3);
   }
 }
 

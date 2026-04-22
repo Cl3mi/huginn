@@ -4,9 +4,7 @@
 
 import { readdirSync, readFileSync, statSync, existsSync } from 'fs';
 import { join, resolve } from 'path';
-import { generateHtmlTemplate } from './html-template.js';
-import { validateReport } from './lib/validate.js';
-import * as components from './components/index.js';
+import { renderHtml } from './cli-generate.js';
 
 interface CliArgs {
   port: number;
@@ -81,25 +79,7 @@ function listReports(dir: string): ReportMeta[] {
 }
 
 async function generateReportHtml(reportPath: string): Promise<string> {
-  const raw = readFileSync(reportPath, 'utf-8');
-  const reportData = JSON.parse(raw);
-
-  const [header, kpiCards, qualityGauge, docDistribution, versionAnalysis, requirementsLandscape, referenceGraph, parseHealth, ragDecisions, footer] =
-    await Promise.all([
-      components.renderHeader(reportData),
-      components.renderKpiCards(reportData),
-      components.renderQualityGauge(reportData),
-      components.renderDocumentDistribution(reportData),
-      components.renderVersionAnalysis(reportData),
-      components.renderRequirementsLandscape(reportData),
-      components.renderReferenceGraph(reportData),
-      components.renderParseHealth(reportData),
-      components.renderRagDecisions(reportData),
-      components.renderFooter(reportData),
-    ]);
-
-  const bodyContent = [header, kpiCards, qualityGauge, docDistribution, versionAnalysis, requirementsLandscape, referenceGraph, parseHealth, ragDecisions, footer].join('\n');
-  return generateHtmlTemplate(raw, bodyContent);
+  return renderHtml(reportPath, true);
 }
 
 function buildIndexPage(reports: ReportMeta[], reportsDir: string): string {
