@@ -1,199 +1,232 @@
-export interface VersionPair {
-  score: number;
-  docA: string;
-  docB: string;
-  confidence?: number;
-}
-
-export interface ReportData {
-  versionPairs?: VersionPair[];
-}
+import type { ReportData } from '../lib/report-types.js';
 
 export async function renderVersionAnalysis(data: ReportData): Promise<string> {
-  const pairs = data.versionPairs || [];
-  const highPairs = pairs.filter((p) => p.score >= 7);
+  const pairs = data.versionPairs;
+  const chains = data.versionChains ?? [];
 
-  // Build score histogram buckets
+  const highPairs  = pairs.filter((p) => p.confidence === 'HIGH');
+  const medPairs   = pairs.filter((p) => p.confidence === 'MEDIUM');
+
+  // Score histogram from pre-computed JSON
+  const histogram = data.versionPairScoreHistogram;
   const buckets = [
-    { label: '10-12', min: 10, max: 12, color: '#43a047' },
-    { label: '7-9', min: 7, max: 9, color: '#8bc34a' },
-    { label: '5-6', min: 5, max: 6, color: '#ff6b35' },
-    { label: '3-4', min: 3, max: 4, color: '#ff9800' },
-    { label: '0-2', min: 0, max: 2, color: '#607d8b' },
+    { label: '10–12', color: '#43a047' },
+    { label: '7–9',   color: '#8bc34a' },
+    { label: '5–6',   color: '#ff9800' },
+    { label: '3–4',   color: '#ff6b35' },
+    { label: '0–2',   color: '#607d8b' },
   ];
-  const bucketCounts = buckets.map((b) => pairs.filter((p) => p.score >= b.min && p.score <= b.max).length);
+  const bucketData = [
+    [10, 11, 12], [7, 8, 9], [5, 6], [3, 4], [0, 1, 2],
+  ].map((scores) => scores.reduce((sum, s) => sum + (histogram[String(s)] ?? 0), 0));
 
-  // Build adjacency for a simple chain visualization using SVG
-  const chainSvg = buildVersionChainSvg(highPairs);
+  // Lookups for doc metadata
+  const fileMap   = new Map((data.files   ?? []).map((f) => [f.id, f]));
+  const parsedMap = new Map((data.parsed  ?? []).map((p) => [p.id, p]));
 
-  // Table rows for HIGH pairs
-  const pairRows = highPairs
+  function docMeta(docId: string) {
+    const f = fileMap.get(docId);
+    const p = f ? parsedMap.get(f.id) : undefined;
+    return {
+      ext:  f?.extension ?? '',
+      type: p?.detectedDocType ?? '',
+      id:   f?.id ?? docId,
+    };
+  }
+
+  // Show HIGH + MEDIUM pairs, top 300 by score
+  const shownPairs = [...highPairs, ...medPairs]
     .sort((a, b) => b.score - a.score)
-    .slice(0, 15)
-    .map(
-      (p) => `
-    <tr>
-      <td><span class="score-badge score-${getScoreClass(p.score)}">${p.score}</span></td>
-      <td class="doc-name" title="${escapeAttr(p.docA)}">${shortName(p.docA)}</td>
-      <td class="doc-name" title="${escapeAttr(p.docB)}">${shortName(p.docB)}</td>
-      ${p.confidence !== undefined ? `<td>${(p.confidence * 100).toFixed(0)}%</td>` : '<td>—</td>'}
-    </tr>
-  `,
-    )
+    .slice(0, 300);
+
+  const highCount = shownPairs.filter((p) => p.confidence === 'HIGH').length;
+  const medCount  = shownPairs.filter((p) => p.confidence === 'MEDIUM').length;
+
+  const pairRows = shownPairs
+    .map((p) => {
+      const confColor = p.confidence === 'HIGH' ? '#43a047' : p.confidence === 'MEDIUM' ? '#ff9800' : '#607d8b';
+      const flagNote  = p.versionPairFlag === 'template_reuse_suspected'
+        ? ' <span class="flag-badge">TEMPLATE?</span>' : '';
+      const newerLabel = p.likelyNewer === 'A' ? `▶ ${shortName(p.docA)}`
+                       : p.likelyNewer === 'B' ? `▶ ${shortName(p.docB)}` : '?';
+      const mA = docMeta(p.docA);
+      const mB = docMeta(p.docB);
+      return `<tr data-conf="${p.confidence}">
+        <td><span class="score-badge" style="background:${scoreColor(p.score)}">${p.score}</span></td>
+        <td><span class="conf-badge" style="color:${confColor}">${p.confidence}</span></td>
+        <td>
+          <div class="doc-name-cell">
+            <a class="doc-link" href="#" data-path="${ea(p.docA)}">${esc(shortName(p.docA))}${flagNote}</a>
+            <span class="doc-meta-tag">${esc(mA.ext.toUpperCase())}${mA.type ? ' · ' + esc(mA.type) : ''}</span>
+          </div>
+        </td>
+        <td>
+          <div class="doc-name-cell">
+            <a class="doc-link" href="#" data-path="${ea(p.docB)}">${esc(shortName(p.docB))}</a>
+            <span class="doc-meta-tag">${esc(mB.ext.toUpperCase())}${mB.type ? ' · ' + esc(mB.type) : ''}</span>
+          </div>
+        </td>
+        <td style="font-size:.82em;color:#a0a4ab">${esc(newerLabel)}</td>
+      </tr>`;
+    })
     .join('');
+
+  const chainSvg = chains.length > 0 ? buildChainSvg(chains) : buildChainSvgFromPairs(highPairs);
 
   return `<section class="version-analysis">
     <h2>Version Pairs & Clustering</h2>
-    <div class="version-summary">
-      <span class="version-count">${pairs.length} total pairs &bull; ${highPairs.length} HIGH confidence (≥7)</span>
-    </div>
+    <p class="section-desc">${pairs.length} total pairs &bull; ${highPairs.length} HIGH &bull; ${medPairs.length} MEDIUM &bull; ${chains.length} chains detected</p>
     <div class="distribution-grid">
       <div class="chart-container">
-        <h3>Score Distribution</h3>
-        <canvas id="version-score-chart"></canvas>
+        <h3>Score Histogram</h3>
+        <canvas id="version-histogram-chart"></canvas>
       </div>
       <div class="chart-container">
-        <h3>Version Chains (HIGH ≥ 7)</h3>
+        <h3>Version Chains (HIGH confidence)</h3>
         <div class="chain-viz">${chainSvg}</div>
       </div>
     </div>
+
     <div class="pairs-table">
-      <h3>HIGH Confidence Pairs</h3>
+      <h3>Pairs — click any document name to inspect its full data</h3>
+      <div class="filter-tabs">
+        <button class="filter-tab active" data-conf-tab="HIGH">HIGH <span style="opacity:.7">(${highCount})</span></button>
+        <button class="filter-tab" data-conf-tab="MEDIUM">MEDIUM <span style="opacity:.7">(${medCount})</span></button>
+        <button class="filter-tab" data-conf-tab="ALL">ALL <span style="opacity:.7">(${shownPairs.length})</span></button>
+      </div>
       <div class="table-search-wrap">
-        <input class="table-search" type="search" placeholder="Filter pairs…" data-table="pairs-table-data">
+        <input class="table-search" type="search" placeholder="Filter by filename…" data-table="pairs-table-data">
         <span class="table-search-count"></span>
       </div>
       <table id="pairs-table-data">
-        <thead>
-          <tr>
-            <th>Score</th>
-            <th>Document A</th>
-            <th>Document B</th>
-            <th>Confidence</th>
-          </tr>
-        </thead>
+        <thead><tr><th>Score</th><th>Conf.</th><th>Document A</th><th>Document B</th><th>Likely Newer</th></tr></thead>
         <tbody>${pairRows}</tbody>
       </table>
+      ${shownPairs.length === 300 ? '<p class="section-desc" style="margin-top:.5rem">Showing top 300 pairs by score. Download JSON for complete dataset.</p>' : ''}
     </div>
   </section>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      if (typeof Chart === 'undefined') return;
-
-      const versionCtx = document.getElementById('version-score-chart');
-      if (versionCtx) {
-        new Chart(versionCtx, {
+      if (typeof Chart !== 'undefined') {
+        new Chart(document.getElementById('version-histogram-chart'), {
           type: 'bar',
           data: {
             labels: ${JSON.stringify(buckets.map((b) => b.label))},
-            datasets: [{
-              label: 'Pairs',
-              data: ${JSON.stringify(bucketCounts)},
-              backgroundColor: ${JSON.stringify(buckets.map((b) => b.color))},
-              borderColor: '#0f1419',
-              borderWidth: 1,
-            }],
+            datasets: [{ data: ${JSON.stringify(bucketData)}, backgroundColor: ${JSON.stringify(buckets.map((b) => b.color))}, borderWidth: 0 }],
           },
           options: {
             responsive: true,
             plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } }, x: { grid: { display: false } } },
           },
         });
       }
+
+      // Confidence filter tabs
+      var tabs = document.querySelectorAll('[data-conf-tab]');
+      var allRows = document.querySelectorAll('#pairs-table-data tbody tr');
+
+      function applyConfFilter(val) {
+        var vis = 0;
+        allRows.forEach(function(row) {
+          var show = val === 'ALL' || row.dataset.conf === val;
+          row.classList.toggle('row-hidden', !show);
+          if (show) vis++;
+        });
+        tabs.forEach(function(t) { t.classList.toggle('active', t.dataset.confTab === val); });
+        var countEl = document.querySelector('#pairs-table-data')
+          .closest('.pairs-table').querySelector('.table-search-count');
+        if (countEl) countEl.textContent = vis + ' rows';
+      }
+
+      tabs.forEach(function(tab) {
+        tab.addEventListener('click', function() { applyConfFilter(tab.dataset.confTab); });
+      });
+
+      // Start with HIGH visible only
+      applyConfFilter('HIGH');
     });
   </script>`;
 }
 
-function buildVersionChainSvg(pairs: VersionPair[]): string {
-  if (pairs.length === 0) return '<p class="no-data">No HIGH confidence pairs detected.</p>';
-
-  // Build adjacency: each node is a unique filename
-  const nodeSet = new Set<string>();
-  pairs.forEach((p) => { nodeSet.add(p.docA); nodeSet.add(p.docB); });
-  const nodes = Array.from(nodeSet);
-
-  // BFS to find connected components (version chains)
-  const adj: Map<string, string[]> = new Map();
-  nodes.forEach((n) => adj.set(n, []));
-  pairs.forEach((p) => {
-    adj.get(p.docA)!.push(p.docB);
-    adj.get(p.docB)!.push(p.docA);
-  });
-
-  const visited = new Set<string>();
-  const chains: string[][] = [];
-  nodes.forEach((start) => {
-    if (visited.has(start)) return;
-    const chain: string[] = [];
-    const queue = [start];
-    while (queue.length > 0) {
-      const cur = queue.shift()!;
-      if (visited.has(cur)) continue;
-      visited.add(cur);
-      chain.push(cur);
-      adj.get(cur)!.forEach((n) => { if (!visited.has(n)) queue.push(n); });
-    }
-    chains.push(chain);
-  });
-
-  // Render chains as horizontal node rows with connecting lines
-  const rowHeight = 44;
-  const colWidth = 180;
-  const nodeW = 160;
-  const nodeH = 28;
-  const svgHeight = chains.length * rowHeight + 20;
-  const svgWidth = Math.max(...chains.map((c) => c.length)) * colWidth + 20;
-
-  let circles = '';
-  let lines = '';
-
-  chains.forEach((chain, row) => {
-    const y = row * rowHeight + 30;
-    chain.forEach((name, col) => {
-      const x = col * colWidth + 10;
-      circles += `<rect x="${x}" y="${y - nodeH / 2}" width="${nodeW}" height="${nodeH}"
-        rx="3" fill="#1a1f26" stroke="#ff6b35" stroke-width="1"/>
-      <text x="${x + nodeW / 2}" y="${y + 5}" text-anchor="middle"
-        font-family="monospace" font-size="10" fill="#e4e6eb" clip-path="url(#clip-${row}-${col})">
-        ${escapeXml(shortName(name))}
-      </text>`;
-      if (col > 0) {
-        const prevX = (col - 1) * colWidth + nodeW + 10;
-        lines += `<line x1="${prevX}" y1="${y}" x2="${x}" y2="${y}"
-          stroke="#2a3038" stroke-width="1" marker-end="url(#arrow)"/>`;
-      }
-    });
-  });
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgWidth} ${svgHeight}"
-    style="width:100%;max-height:240px;overflow:auto">
-    <defs>
-      <marker id="arrow" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto">
-        <path d="M0,0 L0,6 L6,3 z" fill="#2a3038"/>
-      </marker>
-    </defs>
-    ${lines}
-    ${circles}
-  </svg>`;
-}
-
-function getScoreClass(score: number): string {
-  if (score >= 10) return 'high';
-  if (score >= 7) return 'medium';
-  return 'low';
+function scoreColor(score: number): string {
+  if (score >= 10) return '#43a047';
+  if (score >= 7)  return '#8bc34a';
+  if (score >= 5)  return '#ff9800';
+  return '#607d8b';
 }
 
 function shortName(path: string): string {
-  const base = path.split('/').pop() || path;
-  return base.length > 22 ? base.substring(0, 19) + '...' : base;
+  const base = path.split('/').pop() ?? path;
+  return base.length > 30 ? base.slice(0, 27) + '…' : base;
 }
 
-function escapeAttr(s: string): string {
-  return s.replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+function ea(s: string)  { return s.replace(/"/g, '&quot;'); }
+function esc(s: string) {
+  return s.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m] ?? m));
 }
 
-function escapeXml(s: string): string {
+function buildChainSvg(chains: string[][]): string {
+  return buildNetworkSvg(chains);
+}
+
+function buildChainSvgFromPairs(pairs: Array<{ docA: string; docB: string }>): string {
+  if (pairs.length === 0) return '<p class="empty-state">No HIGH confidence pairs.</p>';
+  const adj = new Map<string, Set<string>>();
+  const addEdge = (a: string, b: string) => {
+    if (!adj.has(a)) adj.set(a, new Set());
+    if (!adj.has(b)) adj.set(b, new Set());
+    adj.get(a)!.add(b); adj.get(b)!.add(a);
+  };
+  pairs.forEach((p) => addEdge(p.docA, p.docB));
+
+  const visited = new Set<string>();
+  const chains: string[][] = [];
+  for (const start of adj.keys()) {
+    if (visited.has(start)) continue;
+    const chain: string[] = [];
+    const q = [start];
+    while (q.length) {
+      const cur = q.shift()!;
+      if (visited.has(cur)) continue;
+      visited.add(cur); chain.push(cur);
+      adj.get(cur)!.forEach((n) => { if (!visited.has(n)) q.push(n); });
+    }
+    chains.push(chain);
+  }
+  return buildNetworkSvg(chains);
+}
+
+function buildNetworkSvg(chains: string[][]): string {
+  const maxChains = chains.slice(0, 30); // cap SVG size
+  const colW = 180; const rowH = 48; const nodeW = 160; const nodeH = 30;
+  const maxCols = Math.max(...maxChains.map((c) => c.length), 1);
+  const W = maxCols * colW + 20;
+  const H = maxChains.length * rowH + 16;
+
+  let rects = ''; let lines = '';
+  maxChains.forEach((chain, row) => {
+    const y = row * rowH + rowH / 2 + 8;
+    chain.forEach((name, col) => {
+      const x = col * colW + 10;
+      const label = shortName(name);
+      rects += `<rect x="${x}" y="${y - nodeH/2}" width="${nodeW}" height="${nodeH}" rx="3" fill="#1a2030" stroke="#ff6b35" stroke-width="1"/>
+<text x="${x + nodeW/2}" y="${y + 4}" text-anchor="middle" font-family="monospace" font-size="10" fill="#e4e6eb">${xmlEsc(label)}</text>`;
+      if (col > 0) {
+        const px = (col - 1) * colW + nodeW + 10;
+        lines += `<line x1="${px}" y1="${y}" x2="${x}" y2="${y}" stroke="#2a3038" stroke-width="1" marker-end="url(#arr)"/>`;
+      }
+    });
+  });
+  const note = chains.length > 30 ? `<text x="10" y="${H - 4}" font-family="monospace" font-size="9" fill="#607d8b">…${chains.length - 30} more chains not shown</text>` : '';
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" style="width:100%;overflow:auto;max-height:240px">
+    <defs><marker id="arr" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0 L0,6 L6,3z" fill="#2a3038"/></marker></defs>
+    ${lines}${rects}${note}
+  </svg>`;
+}
+
+function xmlEsc(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }

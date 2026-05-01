@@ -1,108 +1,93 @@
-export interface ConsistencyCheck {
-  value: number;
-  threshold?: number;
-  pass?: boolean;
-}
+import type { ReportData } from '../lib/report-types.js';
 
-export interface ReportData {
-  consistencyChecks?: Record<string, ConsistencyCheck>;
-}
+const CHECK_DISPLAY: Record<string, { label: string; unit: string }> = {
+  parseSuccessRate:        { label: 'Parse Success Rate',     unit: '%' },
+  scannedPdfRatio:         { label: 'Scanned PDF Ratio',      unit: '%' },
+  requirementDensity:      { label: 'Requirement Density',    unit: '/doc' },
+  referenceResolutionRate: { label: 'Ref. Resolution Rate',   unit: '%' },
+  versionPairRatio:        { label: 'Version Pair Ratio',     unit: '%' },
+};
 
-const CHECK_LABELS: Record<string, { label: string; description: string; unit: string }> = {
-  parseSuccessRate: {
-    label: 'Parse Success Rate',
-    description: 'Share of documents successfully parsed.',
-    unit: '%',
-  },
-  scannedPdfRatio: {
-    label: 'Scanned PDF Ratio',
-    description: 'Share of PDFs requiring OCR (higher = less native text).',
-    unit: '%',
-  },
-  requirementDensity: {
-    label: 'Requirement Density',
-    description: 'Average requirements per parsed document.',
-    unit: '/doc',
-  },
-  referenceResolutionRate: {
-    label: 'Reference Resolution Rate',
-    description: 'Share of references successfully resolved within corpus.',
-    unit: '%',
-  },
-  versionPairRatio: {
-    label: 'Version Pair Ratio',
-    description: 'Share of document pairs that are HIGH-confidence version matches.',
-    unit: '%',
-  },
+const SEVERITY_COLOR: Record<string, string> = {
+  INFO: '#1e88e5', WARNING: '#ff6b35', CRITICAL: '#d32f2f',
 };
 
 export async function renderRagDecisions(data: ReportData): Promise<string> {
-  const checks = data.consistencyChecks || {};
+  const checks = data.consistencyChecks;
 
-  const rows = Object.entries(checks)
-    .map(([key, check]) => {
-      const meta = CHECK_LABELS[key] || { label: key, description: '', unit: '' };
-      const isPercent = meta.unit === '%';
+  if (checks.length === 0) {
+    return `<section class="rag-decisions">
+      <h2>Consistency Checks</h2>
+      <p class="empty-state">No consistency checks in report.</p>
+    </section>`;
+  }
+
+  const failed = checks.filter((c) => !c.passed);
+  const passedCount = checks.length - failed.length;
+  const hasCritical = failed.some((c) => c.severity === 'CRITICAL');
+  const summaryColor = hasCritical ? '#d32f2f' : failed.length > 0 ? '#ff6b35' : '#43a047';
+  const summaryText =
+    failed.length === 0
+      ? `All ${checks.length} checks passing`
+      : `${failed.length} check${failed.length !== 1 ? 's' : ''} failing — ${passedCount}/${checks.length} passed`;
+
+  const sorted = [...checks].sort((a, b) => {
+    const sev = { CRITICAL: 0, WARNING: 1, INFO: 2 };
+    const diff = (sev[a.severity] ?? 3) - (sev[b.severity] ?? 3);
+    if (diff !== 0) return diff;
+    return a.passed === b.passed ? 0 : a.passed ? 1 : -1;
+  });
+
+  const rows = sorted
+    .map((c) => {
+      const meta = CHECK_DISPLAY[c.checkName];
+      const isPercent = meta?.unit === '%';
+      const isPerDoc = meta?.unit === '/doc';
       const displayValue = isPercent
-        ? `${(check.value * 100).toFixed(1)}%`
-        : `${check.value.toFixed(2)}${meta.unit}`;
-      const threshold =
-        check.threshold !== undefined
-          ? isPercent
-            ? `${(check.threshold * 100).toFixed(0)}%`
-            : `${check.threshold.toFixed(2)}${meta.unit}`
-          : '—';
-      const pass = check.pass ?? (check.threshold !== undefined ? check.value >= check.threshold : null);
-      const statusHtml =
-        pass === null
-          ? '<span class="badge info">—</span>'
-          : pass
-            ? '<span class="badge success">PASS</span>'
-            : '<span class="badge danger">FAIL</span>';
-
+        ? `${(c.value * 100).toFixed(1)}%`
+        : isPerDoc
+          ? `${c.value.toFixed(2)}/doc`
+          : `${c.value.toFixed(2)}`;
+      const threshDisplay = isPercent
+        ? `${(c.threshold * 100).toFixed(0)}%`
+        : `${c.threshold.toFixed(2)}`;
+      const sevColor = SEVERITY_COLOR[c.severity] ?? '#607d8b';
+      const passHtml = c.passed
+        ? `<span class="badge success">PASS</span>`
+        : `<span class="badge" style="background:${sevColor};color:#fff">${c.severity}</span>`;
       return `<tr>
-        <td>
-          <strong>${meta.label}</strong>
-          ${meta.description ? `<br><span class="check-desc">${meta.description}</span>` : ''}
-        </td>
-        <td style="font-family:monospace;text-align:right">${displayValue}</td>
-        <td style="text-align:right;color:#a0a4ab">${threshold}</td>
-        <td style="text-align:center">${statusHtml}</td>
+        <td><strong>${esc(meta?.label ?? c.checkName)}</strong><br><span class="check-desc">${esc(c.interpretation)}</span></td>
+        <td style="font-family:monospace;text-align:right;white-space:nowrap">${displayValue}</td>
+        <td style="text-align:right;color:#a0a4ab">${threshDisplay}</td>
+        <td style="text-align:center">${passHtml}</td>
       </tr>`;
     })
     .join('');
 
-  const totalChecks = Object.keys(checks).length;
-  const passed = Object.values(checks).filter((c) => c.pass === true).length;
-  const failed = Object.values(checks).filter((c) => c.pass === false).length;
-
-  const summaryColor = failed === 0 ? '#43a047' : failed <= 1 ? '#ff6b35' : '#d32f2f';
-  const summaryText = failed === 0 ? 'All checks passing' : `${failed} check${failed !== 1 ? 's' : ''} failing`;
-
   return `<section class="rag-decisions">
-    <h2>RAG Architecture Recommendations</h2>
+    <h2>Consistency Checks</h2>
     <div class="consistency-summary" style="border-left-color:${summaryColor}">
-      <span class="summary-icon" style="color:${summaryColor}">${failed === 0 ? '✓' : '⚠'}</span>
-      <span class="summary-text">${summaryText} &bull; ${passed}/${totalChecks} consistency checks passed</span>
+      <span style="color:${summaryColor}">${failed.length === 0 ? '✓' : '⚠'}</span>
+      <span class="summary-text">${summaryText}</span>
     </div>
-    ${
-      rows
-        ? `<div class="table-search-wrap">
-        <input class="table-search" type="search" placeholder="Filter checks…" data-table="consistency-table-data">
-        <span class="table-search-count"></span>
-      </div>
-      <table id="consistency-table-data" class="consistency-table">
-        <thead>
-          <tr>
-            <th>Check</th>
-            <th style="text-align:right">Value</th>
-            <th style="text-align:right">Threshold</th>
-            <th style="text-align:center">Status</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>`
-        : '<p class="placeholder">No consistency checks in report.</p>'
-    }
+    <div class="table-search-wrap">
+      <input class="table-search" type="search" placeholder="Filter checks…" data-table="consistency-table-data">
+      <span class="table-search-count"></span>
+    </div>
+    <table id="consistency-table-data" class="consistency-table">
+      <thead>
+        <tr>
+          <th>Check</th>
+          <th style="text-align:right">Value</th>
+          <th style="text-align:right">Threshold</th>
+          <th style="text-align:center">Status</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>
   </section>`;
+}
+
+function esc(s: string) {
+  return s.replace(/[&<>"']/g, (m) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[m] ?? m));
 }

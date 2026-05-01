@@ -1,61 +1,44 @@
-import { formatDate, formatPercent } from '../lib/formatters.js';
+import { formatDate } from '../lib/formatters.js';
 import { COLORS } from '../lib/chart-config.js';
-
-export interface ReportData {
-  scanId: string;
-  timestamp: string;
-  summary: {
-    totalFiles: number;
-    parsedFiles: number;
-    versionPairs: number;
-    references: number;
-    requirements: number;
-    mqScore?: number;
-  };
-  parsed?: Array<{ filename: string; language?: string; pageCount?: number }>;
-  versionPairs?: Array<{ score: number; docA: string; docB: string }>;
-  references?: Array<{ text: string; type: string }>;
-  requirements?: Array<{ type: string; category?: string; safetyFlag?: boolean }>;
-  consistencyChecks?: Record<string, { value: number; threshold?: number; pass?: boolean }>;
-}
+import type { ReportData } from '../lib/report-types.js';
 
 export async function renderHeader(data: ReportData): Promise<string> {
-  const mqScore = data.summary.mqScore ?? 0;
-  const mqColor = getMqColor(mqScore);
-  const formattedDate = formatDate(data.timestamp);
+  const mqScore = data.metadataQualityScore.overall;
+  const mqColor = mqScore >= 80 ? COLORS.accent.green : mqScore >= 60 ? COLORS.accent.orange : COLORS.accent.red;
+  const mqInterp = data.metadataQualityScore.interpretation;
+  const formattedDate = formatDate(data.startedAt);
   const parseRate = data.summary.totalFiles > 0 ? data.summary.parsedFiles / data.summary.totalFiles : 0;
+  const parseRateDisplay = `${(parseRate * 100).toFixed(1)}%`;
+
+  const highPairs = data.versionPairs.filter((p) => p.confidence === 'HIGH').length;
 
   return `<header class="dashboard-header">
     <div class="header-content">
-      <h1>${escapeHtml(data.scanId)}</h1>
-      <p class="timestamp">${formattedDate}</p>
+      <div class="header-logo">HUGINN</div>
+      <h1 class="header-scan-id">${escapeHtml(data.scanId)}</h1>
+      <p class="timestamp">${formattedDate} &bull; ${escapeHtml(data.documentsRoot ?? '')}</p>
     </div>
     <div class="header-metrics">
-      <div class="mq-badge" style="background-color: ${mqColor}">
-        <span class="mq-label">MQ Score</span>
-        <span class="mq-value">${mqScore}</span>
+      <div class="header-metric">
+        <span class="hm-label">MQ Score</span>
+        <span class="hm-value" style="color:${mqColor}">${mqScore}<span class="hm-unit">/100</span></span>
+        <span class="hm-sub">${escapeHtml(mqInterp)}</span>
       </div>
-      <div class="parse-badge">
-        <span class="parse-label">Parse Rate</span>
-        <span class="parse-value">${formatPercent(parseRate, 1)}</span>
+      <div class="header-metric">
+        <span class="hm-label">Parse Rate</span>
+        <span class="hm-value" style="color:${parseRate >= 0.9 ? COLORS.accent.green : COLORS.accent.orange}">${parseRateDisplay}</span>
+        <span class="hm-sub">${data.summary.parsedFiles}/${data.summary.totalFiles} files</span>
+      </div>
+      <div class="header-metric">
+        <span class="hm-label">HIGH Pairs</span>
+        <span class="hm-value" style="color:${COLORS.accent.blue}">${highPairs}</span>
+        <span class="hm-sub">version clusters</span>
       </div>
     </div>
   </header>`;
 }
 
-function getMqColor(score: number): string {
-  if (score < 33) return COLORS.accent.red;
-  if (score < 66) return COLORS.accent.orange;
-  return COLORS.accent.green;
-}
-
 function escapeHtml(text: string): string {
-  const map: Record<string, string> = {
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#039;',
-  };
+  const map: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
   return text.replace(/[&<>"']/g, (m) => map[m] ?? m);
 }

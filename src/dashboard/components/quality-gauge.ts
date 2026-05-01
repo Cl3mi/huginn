@@ -1,93 +1,83 @@
-import { formatPercent } from '../lib/formatters.js';
-
-export interface ReportData {
-  summary: { mqScore?: number };
-  parsed?: Array<{ filename: string }>;
-  consistencyChecks?: Record<string, { value: number; pass?: boolean }>;
-}
+import type { ReportData } from '../lib/report-types.js';
 
 export async function renderQualityGauge(data: ReportData): Promise<string> {
-  const mqScore = data.summary.mqScore ?? 0;
+  const mq = data.metadataQualityScore;
+  const score = mq.overall;
+  const gaugeColor = score >= 80 ? '#43a047' : score >= 60 ? '#ff6b35' : '#d32f2f';
+  const c = mq.components;
 
-  // Component breakdown from consistency checks
-  const checks = data.consistencyChecks || {};
-  const parseRate = checks.parseSuccessRate?.value ?? 0;
-  const scannedRatio = checks.scannedPdfRatio?.value ?? 0;
-  const refResolution = checks.referenceResolutionRate?.value ?? 0;
-
-  const components = [
-    { label: 'Parse Success', value: parseRate, color: '#1e88e5' },
-    { label: 'Scanned PDF', value: scannedRatio, color: '#ff6b35' },
-    { label: 'Ref Resolution', value: refResolution, color: '#43a047' },
+  const rows: Array<{ label: string; raw: number | string | undefined; unit: string; color: string }> = [
+    { label: 'Parse Success Rate', raw: c['parseSuccessRate'], unit: '%', color: '#1e88e5' },
+    { label: 'Heading Extraction', raw: c['headingExtractionConfidence'], unit: '%', color: '#43a047' },
+    { label: 'Req. Validation Agreement', raw: c['requirementValidationDelta'], unit: '%', color: '#ff6b35' },
+    { label: 'OCR Coverage', raw: c['ocrWarningRate'] !== undefined ? 100 - Number(c['ocrWarningRate']) : undefined, unit: '%', color: '#9c27b0' },
   ];
 
-  const componentRows = components
-    .map(
-      (comp) => `
-    <tr>
-      <td>${comp.label}</td>
-      <td><span class="color-swatch" style="background-color: ${comp.color}"></span></td>
-      <td style="text-align: right"><strong>${formatPercent(comp.value, 1)}</strong></td>
-    </tr>
-  `,
-    )
+  const tableRows = rows
+    .map((r) => {
+      const display = r.raw !== undefined ? `${Number(r.raw).toFixed(1)}${r.unit}` : '—';
+      const barW = r.raw !== undefined ? Math.min(100, Math.max(0, Number(r.raw))) : 0;
+      return `<tr>
+        <td>${r.label}</td>
+        <td>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar" style="width:${barW}%;background:${r.color}"></div>
+          </div>
+        </td>
+        <td style="text-align:right;font-family:monospace;font-weight:600">${display}</td>
+      </tr>`;
+    })
     .join('');
+
+  const calibrationNote =
+    c['versionPairCalibrationStatus']
+      ? `<p class="calibration-note">Version calibration: ${String(c['versionPairCalibrationStatus'])}</p>`
+      : '';
 
   return `<section class="quality-gauge">
     <h2>Data Quality Assessment</h2>
+    <p class="section-desc">${escapeHtml(mq.interpretation)}</p>
     <div class="gauge-container">
-      <div class="gauge-chart">
-        <canvas id="quality-chart" style="max-width: 300px; margin: 0 auto;"></canvas>
-        <div class="gauge-center">
-          <div class="gauge-score">${mqScore}</div>
-          <div class="gauge-label">MQ Score</div>
+      <div class="gauge-chart-wrap">
+        <canvas id="mq-gauge-chart" width="220" height="220"></canvas>
+        <div class="gauge-center-text">
+          <div class="gauge-score" style="color:${gaugeColor}">${score}</div>
+          <div class="gauge-sub">/100</div>
         </div>
       </div>
       <div class="gauge-components">
-        <h3>Component Breakdown</h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Component</th>
-              <th></th>
-              <th>Score</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${componentRows}
-          </tbody>
+        <table class="component-table">
+          <thead><tr><th>Component</th><th style="width:120px"></th><th>Score</th></tr></thead>
+          <tbody>${tableRows}</tbody>
         </table>
+        ${calibrationNote}
       </div>
     </div>
   </section>
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      if (typeof Chart === 'undefined') {
-        console.warn('Chart.js not loaded, skipping quality gauge');
-        return;
-      }
-      const ctx = document.getElementById('quality-chart');
+      if (typeof Chart === 'undefined') return;
+      const ctx = document.getElementById('mq-gauge-chart');
       if (ctx) {
         new Chart(ctx, {
           type: 'doughnut',
           data: {
-            datasets: [{
-              data: [${mqScore}, ${100 - mqScore}],
-              backgroundColor: ['#43a047', '#2a3038'],
-              borderColor: '#0f1419',
-              borderWidth: 2,
-            }],
+            datasets: [{ data: [${score}, ${100 - score}], backgroundColor: ['${gaugeColor}','#1e2530'], borderWidth: 0 }],
           },
           options: {
-            responsive: true,
-            plugins: {
-              legend: { display: false },
-              tooltip: { enabled: false },
-            },
+            cutout: '78%',
+            rotation: -90,
+            circumference: 180,
+            responsive: false,
+            plugins: { legend: { display: false }, tooltip: { enabled: false } },
           },
         });
       }
     });
   </script>`;
+}
+
+function escapeHtml(t: string) {
+  return t.replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;' }[c] ?? c));
 }
