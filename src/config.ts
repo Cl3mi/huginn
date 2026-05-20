@@ -1,6 +1,7 @@
 export const CONFIG = {
   documentsRoot: process.env["DOCUMENTS_ROOT"] || "/documents",
   reportOutput: process.env["REPORT_OUTPUT"] || "/reports",
+  serverPort: parseInt(process.env["HUGINN_SERVER_PORT"] || "3000", 10),
 
   tikaUrl: process.env["TIKA_URL"] || "http://tika:9998",
   ollamaUrl: process.env["OLLAMA_URL"] || "http://ollama:11434",
