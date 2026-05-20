@@ -1,0 +1,204 @@
+import { join, resolve } from "path";
+import { readdirSync, statSync } from "fs";
+import { randomUUID } from "crypto";
+import { CONFIG } from "../config.ts";
+import { broadcaster } from "./sse.ts";
+import type { SseEvent } from "./sse.ts";
+import { browseFolder, FolderBrowseError } from "./folder-browser.ts";
+import { healthState } from "./health-state.ts";
+import { runPipeline } from "../pipeline.ts";
+import type { ScanSettings } from "../pipeline.ts";
+
+type ScanState =
+  | { status: "idle" }
+  | { status: "running"; scanId: string; startedAt: Date; folder: string }
+  | { status: "complete"; scanId: string; reportFiles: string[] }
+  | { status: "error"; scanId: string; phase: string; message: string };
+
+let scanState: ScanState = { status: "idle" };
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json", ...CORS },
+  });
+}
+
+function handleHealth(): Response {
+  return json({
+    tikaOk: healthState.tikaOk,
+    ollamaOk: healthState.ollamaOk,
+    modelsAvailable: healthState.modelsAvailable,
+    scanStatus: scanState.status,
+  });
+}
+
+async function handleBrowse(url: URL): Promise<Response> {
+  const requestedPath = url.searchParams.get("path") || CONFIG.documentsRoot;
+  try {
+    const result = await browseFolder(CONFIG.documentsRoot, requestedPath);
+    return json(result);
+  } catch (e) {
+    if (e instanceof FolderBrowseError) return json({ error: e.message }, e.status);
+    return json({ error: "Browse failed" }, 500);
+  }
+}
+
+async function handleStartScan(req: Request): Promise<Response> {
+  if (scanState.status === "running") {
+    return json({ error: "scan_already_running", scanId: (scanState as { status: "running"; scanId: string }).scanId }, 409);
+  }
+
+  let body: { folder?: string; settings?: Partial<ScanSettings> };
+  try {
+    body = await req.json() as typeof body;
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+
+  const folder = body.folder || CONFIG.documentsRoot;
+  const settings: ScanSettings = {
+    embedModel: body.settings?.embedModel || CONFIG.ollamaEmbedModel,
+    chatModel: body.settings?.chatModel || CONFIG.ollamaChatModel,
+    llmSampleRate: body.settings?.llmSampleRate ?? CONFIG.llmSampleRate,
+    sectionEmbeddings: body.settings?.sectionEmbeddings ?? false,
+  };
+
+  const safeRoot = resolve(CONFIG.documentsRoot);
+  const safeFolder = resolve(folder);
+  if (safeFolder !== safeRoot && !safeFolder.startsWith(safeRoot + "/")) {
+    return json({ error: "folder_outside_root" }, 400);
+  }
+  try {
+    if (!statSync(safeFolder).isDirectory()) return json({ error: "not_a_directory" }, 400);
+  } catch {
+    return json({ error: "folder_not_found" }, 400);
+  }
+
+  const scanId = `scan-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  scanState = { status: "running", scanId, startedAt: new Date(), folder: safeFolder };
+
+  runPipeline({
+    folder: safeFolder,
+    settings,
+    onProgress: (event: SseEvent) => {
+      broadcaster.emit(event);
+      if (event.type === "scan_complete") {
+        scanState = { status: "complete", scanId: event.scanId, reportFiles: event.reports };
+      } else if (event.type === "scan_error") {
+        scanState = { status: "error", scanId, phase: event.phase, message: event.message };
+      }
+    },
+  }).catch(() => {
+    if (scanState.status === "running") {
+      scanState = { status: "error", scanId, phase: "unknown", message: "Pipeline failed" };
+    }
+  });
+
+  return json({ scanId }, 202);
+}
+
+function handleStatus(): Response {
+  const clientId = randomUUID();
+  const stream = new ReadableStream<string>({
+    start(controller) {
+      broadcaster.add(clientId, controller);
+      if (scanState.status === "complete") {
+        controller.enqueue(`data: ${JSON.stringify({ type: "scan_complete", scanId: scanState.scanId, reports: scanState.reportFiles })}\n\n`);
+      } else if (scanState.status === "error") {
+        controller.enqueue(`data: ${JSON.stringify({ type: "scan_error", phase: scanState.phase, message: scanState.message })}\n\n`);
+      }
+    },
+    cancel() {
+      broadcaster.remove(clientId);
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      "Connection": "keep-alive",
+      ...CORS,
+    },
+  });
+}
+
+function handleReportDownload(filename: string): Response {
+  if (filename.includes("/") || filename.includes("..")) {
+    return json({ error: "Invalid filename" }, 400);
+  }
+  const filePath = join(CONFIG.reportOutput, filename);
+  const safeReportDir = resolve(CONFIG.reportOutput);
+  if (!resolve(filePath).startsWith(safeReportDir + "/") && resolve(filePath) !== safeReportDir) {
+    return json({ error: "Forbidden" }, 403);
+  }
+  let size: number;
+  try {
+    size = statSync(filePath).size;
+  } catch {
+    return json({ error: "Report not found" }, 404);
+  }
+  const ext = filename.split(".").pop() ?? "";
+  const contentTypes: Record<string, string> = {
+    json: "application/json",
+    md: "text/markdown",
+    html: "text/html",
+    log: "text/plain",
+  };
+  return new Response(Bun.file(filePath), {
+    headers: {
+      "Content-Type": contentTypes[ext] ?? "application/octet-stream",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+      "Content-Length": String(size),
+      ...CORS,
+    },
+  });
+}
+
+function handleListReports(): Response {
+  try {
+    const files = readdirSync(CONFIG.reportOutput)
+      .filter(f => /\.(json|md|html|log)$/.test(f))
+      .sort()
+      .reverse()
+      .slice(0, 20)
+      .map(name => {
+        try {
+          return { name, size: statSync(join(CONFIG.reportOutput, name)).size };
+        } catch { return { name, size: 0 }; }
+      });
+    return json({ files });
+  } catch {
+    return json({ files: [] });
+  }
+}
+
+export async function handleRequest(req: Request): Promise<Response> {
+  const url = new URL(req.url);
+  const path = url.pathname;
+
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  if (path === "/api/health" && req.method === "GET") return handleHealth();
+  if (path === "/api/browse" && req.method === "GET") return handleBrowse(url);
+  if (path === "/api/scan" && req.method === "POST") return handleStartScan(req);
+  if (path === "/api/status" && req.method === "GET") return handleStatus();
+  if (path === "/api/reports" && req.method === "GET") return handleListReports();
+
+  const reportMatch = path.match(/^\/api\/reports\/(.+)$/);
+  if (reportMatch && req.method === "GET") return handleReportDownload(reportMatch[1]!);
+
+  if (req.method === "GET") {
+    const uiPath = new URL("../ui/index.html", import.meta.url).pathname;
+    return new Response(Bun.file(uiPath), {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+  }
+
+  return json({ error: "Not found" }, 404);
+}
