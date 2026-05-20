@@ -14,14 +14,14 @@ const writeFileAsync = promisify(writeFile);
 // This makes the guard a true backstop rather than the first
 // line of defence, eliminating field-by-field whack-a-mole.
 // ============================================================
-function deepTruncateStrings(obj: unknown): unknown {
+function deepTruncateStrings(obj: unknown, exemptKeys: Set<string> = new Set(["suggestedRegex"])): unknown {
   const MAX = CONFIG.maxStringLengthInReport;
   if (typeof obj === "string") return obj.length > MAX ? obj.slice(0, MAX) : obj;
-  if (Array.isArray(obj)) return obj.map(deepTruncateStrings);
+  if (Array.isArray(obj)) return obj.map((item) => deepTruncateStrings(item, exemptKeys));
   if (obj !== null && typeof obj === "object") {
     const result: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(obj as Record<string, unknown>)) {
-      result[key] = deepTruncateStrings(val);
+      result[key] = exemptKeys.has(key) ? val : deepTruncateStrings(val, exemptKeys);
     }
     return result;
   }
@@ -231,6 +231,21 @@ function serializeState(state: ScannerState): unknown {
     requirements: state.requirements,
     llmValidation: state.llmValidation,
     consistencyChecks: state.consistencyChecks,
+    tokenProjection:    state.ingestionProjections,
+    corpusTokenSummary: state.corpusIngestionSummary,
+    boilerplateDiscovery: {
+      patterns: state.discoveredBoilerplatePatterns,
+      summary: {
+        totalCandidatePatterns: state.discoveredBoilerplatePatterns.length,
+        newPatterns: state.discoveredBoilerplatePatterns.filter((p) => !p.alreadyCovered).length,
+        suppressedPatterns: 0,
+        totalTokensRecoverable: state.corpusIngestionSummary.totalTokensRaw > 0
+          ? state.discoveredBoilerplatePatterns.filter((p) => !p.alreadyCovered).reduce((s, p) => s + p.tokensAtRisk, 0)
+          : 0,
+      },
+    },
+    muninnConfig:  state.muninnConfigRecommendations,
+    domainProfile: state.domainProfile,
   };
 }
 

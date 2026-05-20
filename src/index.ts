@@ -13,6 +13,7 @@ import { runReferences } from "./phases/5-references.ts";
 import { runRequirements } from "./phases/6-requirements.ts";
 import { runValidate } from "./phases/7-validate.ts";
 import { runReport } from "./phases/8-report.ts";
+import { runProjection } from "./phases/9-projection.ts";
 import { randomUUID } from "crypto";
 
 async function startupChecks(): Promise<{ tikaOk: boolean; ollamaOk: boolean }> {
@@ -99,6 +100,10 @@ async function main() {
     {
       name: "2-parse",
       fn: () => runParse(state),
+    },
+    {
+      name: "9-projection",
+      fn: () => runProjection(state),
     },
     {
       name: "3-fingerprint",
