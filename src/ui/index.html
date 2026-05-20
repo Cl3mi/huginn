@@ -524,6 +524,269 @@ document.getElementById('btn-start').addEventListener('click', async () => {
   }
 });
 
+// ── Progress screen ────────────────────────────────────────────────────────
+function initProgressScreen(folder, scanId, settings) {
+  state.phases = PHASE_NAMES.map((p, i) => ({...p, idx: i, status: 'pending', durationMs: null, startedAt: null}));
+  state.logs = [];
+  state.completedPhaseCount = 0;
+  renderPhaseList('phase-list');
+  document.getElementById('progress-subtitle').textContent = folder + ' · ' + scanId;
+  document.getElementById('log-box').innerHTML = '';
+  document.getElementById('scan-info-grid').innerHTML = infoGrid({
+    'Folder': folder,
+    'Scan ID': scanId,
+    'Embed model': settings.embedModel,
+    'Chat model': settings.chatModel,
+  });
+  startElapsed();
+}
+
+function startElapsed() {
+  if (state.elapsedInterval) clearInterval(state.elapsedInterval);
+  state.elapsedInterval = setInterval(() => {
+    if (!state.startedAt) return;
+    const secs = Math.floor((Date.now() - state.startedAt) / 1000);
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    const el = document.getElementById('elapsed-timer');
+    if (el) el.textContent = m + ':' + s;
+  }, 1000);
+}
+
+function stopElapsed() {
+  if (state.elapsedInterval) { clearInterval(state.elapsedInterval); state.elapsedInterval = null; }
+}
+
+function renderPhaseList(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = state.phases.map(p => {
+    const cls = p.status === 'running' ? 'p-running' : p.status === 'done' ? '' : p.status === 'error' ? '' : 'p-pending';
+    const icon = p.status === 'done' ? `<span style="color:var(--success);font-size:.85rem;">✓</span>`
+      : p.status === 'running' ? `<span class="spinner" style="color:var(--warning);"></span>`
+      : p.status === 'error' ? `<span style="color:var(--error);font-size:.85rem;">✗</span>`
+      : `<span style="color:var(--text-muted);">·</span>`;
+    const time = p.durationMs != null
+      ? (p.durationMs / 1000).toFixed(0) + 's'
+      : p.status === 'running' ? '…' : '—';
+    const nameColor = p.status === 'running' ? 'p-running' : p.status === 'done' ? 'p-done' : 'p-pending';
+    return `<div class="phase-row ${cls}">
+      <span class="phase-num">${p.name.split('-')[0]}</span>
+      ${icon}
+      <span class="phase-name ${nameColor}">${p.label}</span>
+      <span class="phase-time${p.status==='running'?' running':''}">${time}</span>
+    </div>`;
+  }).join('');
+}
+
+function addLog(ts, level, phase, message) {
+  state.logs.push({ts, level, phase, message});
+  if (state.logs.length > 200) state.logs.shift();
+  const box = document.getElementById('log-box');
+  if (!box) return;
+  const cls = level === 'WARN' ? 'warn' : level === 'ERROR' ? 'error' : '';
+  const div = document.createElement('div');
+  div.className = 'log-line ' + cls;
+  div.innerHTML = `<span class="log-ts">${ts}</span><span class="log-ph">${phase}</span><span class="log-msg">${escapeHtml(message)}</span>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function infoGrid(pairs) {
+  return Object.entries(pairs).map(([k,v]) =>
+    `<span class="info-label">${escapeHtml(String(k))}</span><span class="info-val">${escapeHtml(String(v))}</span>`
+  ).join('');
+}
+
+// ── SSE connection ─────────────────────────────────────────────────────────
+function connectSse() {
+  const es = new EventSource('/api/status');
+  es.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    const now = new Date().toLocaleTimeString('de-DE', {hour12: false});
+
+    if (event.type === 'phase_start') {
+      const p = state.phases[event.phaseIndex];
+      if (p) { p.status = 'running'; p.startedAt = Date.now(); }
+      renderPhaseList('phase-list');
+      addLog(now, 'INFO', event.phase, 'Phase started');
+      updateTopbarRunning(event.phaseIndex);
+
+    } else if (event.type === 'phase_end') {
+      const p = state.phases.find(x => x.name === event.phase);
+      if (p) { p.status = 'done'; p.durationMs = event.durationMs; }
+      state.completedPhaseCount++;
+      const pct = Math.round((state.completedPhaseCount / 9) * 100);
+      document.getElementById('progress-fill').style.width = pct + '%';
+      document.getElementById('progress-text').textContent = state.completedPhaseCount + ' of 9 phases complete';
+      document.getElementById('progress-pct').textContent = pct + '%';
+      renderPhaseList('phase-list');
+
+    } else if (event.type === 'log') {
+      addLog(now, event.level, event.phase, event.message);
+
+    } else if (event.type === 'scan_complete') {
+      stopElapsed();
+      state.reportFiles = event.reports;
+      es.close();
+      const jsonFile = event.reports ? event.reports.find(f => f.endsWith('.json')) : null;
+      if (jsonFile) {
+        fetch('/api/reports/' + encodeURIComponent(jsonFile))
+          .then(r => r.json())
+          .then(data => { state.reportData = data; renderCompleteScreen(event.scanId); })
+          .catch(() => renderCompleteScreen(event.scanId));
+      } else {
+        renderCompleteScreen(event.scanId);
+      }
+      showScreen('complete');
+
+    } else if (event.type === 'scan_error') {
+      stopElapsed();
+      const p = state.phases.find(x => x.name === event.phase);
+      if (p) p.status = 'error';
+      state.errorPhase = event.phase;
+      state.errorMessage = event.message;
+      renderPhaseList('error-phase-list');
+      const errLogBox = document.getElementById('error-log-box');
+      const liveLogBox = document.getElementById('log-box');
+      if (errLogBox && liveLogBox) errLogBox.innerHTML = liveLogBox.innerHTML;
+      document.getElementById('error-banner').textContent = 'Phase ' + event.phase + ' failed: ' + event.message;
+      document.getElementById('error-subtitle').textContent = state.scanId || '—';
+      document.getElementById('error-info-grid').innerHTML = infoGrid({'Scan ID': state.scanId || '—', 'Failed at': event.phase});
+      es.close();
+      showScreen('error');
+    }
+  };
+  es.onerror = () => {
+    if (state.screen === 'progress') {
+      addLog(new Date().toLocaleTimeString(), 'WARN', 'network', 'SSE connection lost — reconnecting...');
+    }
+  };
+}
+
+function updateTopbarRunning(phaseIndex) {
+  const dot = document.getElementById('topbar-dot');
+  const label = document.getElementById('topbar-label');
+  dot.style.background = 'var(--warning)';
+  label.textContent = 'Running — Phase ' + (phaseIndex + 1) + ' of 9';
+  label.style.color = 'var(--warning)';
+}
+
+document.getElementById('btn-abort').addEventListener('click', () => {
+  if (confirm('Abort scan? The pipeline will continue running until the current phase completes.')) {
+    location.reload();
+  }
+});
+
+// ── Complete screen ────────────────────────────────────────────────────────
+function renderCompleteScreen(scanId) {
+  const d = state.reportData;
+  const duration = state.startedAt
+    ? Math.round((Date.now() - state.startedAt) / 1000) + 's total'
+    : '—';
+  document.getElementById('complete-subtitle').textContent = scanId;
+  document.getElementById('complete-duration').textContent = duration;
+
+  if (d && d.metadataQualityScore) {
+    const mq = d.metadataQualityScore;
+    const poor = mq.overall < 60;
+    document.getElementById('q-score').textContent = mq.overall;
+    document.getElementById('q-score').className = 'quality-score-val' + (poor ? ' poor' : '');
+    document.getElementById('q-interp').textContent = mq.interpretation || (poor ? 'Quality issues detected' : 'Metrics are reliable');
+    document.getElementById('q-interp').className = 'quality-interp' + (poor ? ' poor' : '');
+    if (poor) document.getElementById('quality-card').classList.add('poor');
+    const c = mq.components || {};
+    document.getElementById('q-bars').innerHTML = [
+      ['Parse success', c.parseSuccessRate],
+      ['Heading extraction', c.headingExtractionConfidence],
+      ['LLM validation', c.requirementValidationDelta],
+      ['OCR coverage', 100 - (c.ocrWarningRate || 0)],
+    ].map(([label, val]) =>
+      `<span class="qb-label">${label}</span>
+       <div class="qb-track"><div class="qb-fill" style="width:${val || 0}%;"></div></div>
+       <span class="qb-val">${val != null ? val + '%' : '—'}</span>`
+    ).join('');
+  } else {
+    document.getElementById('q-score').textContent = '—';
+    document.getElementById('q-interp').textContent = 'Report data unavailable';
+  }
+
+  const s = d && d.summary ? d.summary : {};
+  document.getElementById('complete-stats').innerHTML = [
+    ['Files', s.totalFiles ?? '—'],
+    ['Parsed', s.parsedFiles ?? '—'],
+    ['Failed', s.parseFailures ?? '—'],
+    ['Version pairs', d ? (d.versionPairs || []).filter(p => p.confidence === 'HIGH').length : '—'],
+    ['References', d ? (d.references || []).length : '—'],
+    ['Requirements', d ? (d.requirements || []).length : '—'],
+  ].map(([label, val]) =>
+    `<div class="stat-cell"><div class="stat-label">${label}</div><div class="stat-val">${val}</div></div>`
+  ).join('');
+
+  document.getElementById('complete-phases').innerHTML =
+    '<div style="display:flex;flex-direction:column;gap:2px;">' +
+    state.phases.map(p =>
+      `<div class="pd-row">
+        <span class="pd-num">${p.name.split('-')[0]}</span>
+        <span style="color:var(--success);font-size:.85rem;">✓</span>
+        <span class="pd-name">${p.label}</span>
+        <span class="pd-time">${p.durationMs != null ? (p.durationMs/1000).toFixed(0)+'s' : '—'}</span>
+      </div>`
+    ).join('') + '</div>';
+
+  document.getElementById('complete-info-grid').innerHTML = infoGrid({
+    'Scan ID': scanId,
+    'Completed': new Date().toLocaleTimeString(),
+    'Duration': duration,
+  });
+
+  fetch('/api/reports')
+    .then(r => r.json())
+    .then(data => {
+      const files = (data.files || []).filter(f =>
+        f.name.endsWith('.json') || f.name.endsWith('.md') || f.name.endsWith('.html')
+      ).slice(0, 3);
+      document.getElementById('dl-list').innerHTML = files.map(f => {
+        const ext = f.name.split('.').pop();
+        const icons = {json: '{ }', md: '📄', html: '📊'};
+        const descs = {json: 'Full structured output for downstream processing', md: 'Human-readable summary with all recommendations', html: 'Interactive report with charts and tables'};
+        const names = {json: 'JSON Data', md: 'Markdown Report', html: 'HTML Dashboard'};
+        const size = f.size > 1048576 ? (f.size/1048576).toFixed(1)+' MB' : Math.round(f.size/1024)+' KB';
+        return `<a class="dl-row" href="/api/reports/${encodeURIComponent(f.name)}" download="${escapeHtml(f.name)}">
+          <span class="dl-icon">${icons[ext]||'📎'}</span>
+          <div class="dl-info">
+            <div class="dl-name">${names[ext]||escapeHtml(f.name)}</div>
+            <div class="dl-desc">${descs[ext]||''}</div>
+          </div>
+          <span class="dl-size">${size}</span>
+          <span class="dl-arrow">↓</span>
+        </a>`;
+      }).join('');
+    }).catch(() => {
+      document.getElementById('dl-list').innerHTML = '<div style="color:var(--text-muted);font-size:.875rem;">Could not list reports.</div>';
+    });
+
+  document.getElementById('topbar-dot').style.background = 'var(--success)';
+  document.getElementById('topbar-label').textContent = 'Scan complete';
+  document.getElementById('topbar-label').style.color = 'var(--text-muted)';
+}
+
+document.getElementById('btn-new-scan').addEventListener('click', () => {
+  state.reportData = null; state.scanId = null; state.startedAt = null;
+  state.phases = []; state.logs = []; state.completedPhaseCount = 0;
+  fetchHealth(); loadFolder(state.selectedFolder || '/documents');
+  showScreen('setup');
+});
+
+document.getElementById('btn-retry').addEventListener('click', () => {
+  state.errorPhase = null; state.errorMessage = null;
+  fetchHealth(); showScreen('setup');
+});
+
 fetchHealth();
 setInterval(fetchHealth, 10000);
 loadFolder('/documents');
