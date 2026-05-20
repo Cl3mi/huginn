@@ -34,7 +34,7 @@ function deepTruncateStrings(obj: unknown, exemptKeys: Set<string> = new Set(["s
 // Runs after deepTruncateStrings — should never fire in normal
 // operation; exists as a backstop assertion.
 // ============================================================
-function sanitizeReport(obj: unknown, path = "root"): void {
+function sanitizeReport(obj: unknown, path = "root", exemptKeys: Set<string> = new Set(["suggestedRegex"])): void {
   const MAX = CONFIG.maxStringLengthInReport;
   if (typeof obj === "string") {
     if (obj.length > MAX) {
@@ -55,12 +55,12 @@ function sanitizeReport(obj: unknown, path = "root"): void {
         );
       }
     }
-    obj.forEach((item, i) => sanitizeReport(item, `${path}[${i}]`));
+    obj.forEach((item, i) => sanitizeReport(item, `${path}[${i}]`, exemptKeys));
     return;
   }
   if (obj !== null && typeof obj === "object") {
     for (const [key, val] of Object.entries(obj)) {
-      sanitizeReport(val, `${path}.${key}`);
+      if (!exemptKeys.has(key)) sanitizeReport(val, `${path}.${key}`, exemptKeys);
     }
   }
 }
