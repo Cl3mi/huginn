@@ -663,7 +663,8 @@ function connectSse() {
   };
   es.onerror = () => {
     if (state.screen === 'progress') {
-      addLog(new Date().toLocaleTimeString(), 'WARN', 'network', 'SSE connection lost — reconnecting...');
+      addLog(new Date().toLocaleTimeString(), 'WARN', 'network', 'SSE connection lost');
+      es.close();
     }
   };
 }
