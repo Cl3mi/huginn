@@ -51,7 +51,7 @@ function log(level: LogLevel, message: string, data?: unknown): void {
   }
 
   if ((level === "WARN" || level === "ERROR") && _progressCb) {
-    _progressCb({ type: "log", level, phase: currentPhase, message });
+    _progressCb({ type: "log", level, phase: currentPhase, message: sanitizeMessage(message) });
   }
 }
 
@@ -64,13 +64,11 @@ export const logger = {
   phaseStart: (phase: string) => {
     setPhase(phase);
     log("INFO", `Phase started: ${phase}`);
-    if (_progressCb) _progressCb({ type: "phase_start", phase });
     return Date.now();
   },
 
   phaseEnd: (phase: string, startTime: number, extra?: unknown) => {
     const durationMs = Date.now() - startTime;
     log("INFO", `Phase completed: ${phase}`, { durationMs, ...((extra as object) ?? {}) });
-    if (_progressCb) _progressCb({ type: "phase_end", phase, durationMs });
   },
 };

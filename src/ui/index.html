@@ -442,7 +442,7 @@ async function loadFolder(path) {
     selectFolder(path, null);
   } catch (e) {
     document.getElementById('folder-tree').innerHTML =
-      `<div class="tree-item" style="color:var(--error);">${e.message}</div>`;
+      `<div class="tree-item" style="color:var(--error);">${escapeHtml(e.message)}</div>`;
   }
 }
 
@@ -456,7 +456,7 @@ function renderTree(data) {
     const fullPath = data.path + '/' + e.name;
     return `<div class="tree-item" data-path="${fullPath.replace(/"/g, '&quot;')}">
       <span class="tree-icon">📁</span>
-      <span>${e.name}/</span>
+      <span>${escapeHtml(e.name)}/</span>
       <span class="tree-count">${e.fileCount} file${e.fileCount !== 1 ? 's' : ''}</span>
     </div>`;
   }).join('');
