@@ -102,7 +102,7 @@ export function buildDomainProfile(
   ).length / totalSamples;
 
   const unitCoverage = samples.filter((s) =>
-    dominantUnitFamily !== "none" && dominantUnitFamily !== "mixed" &&
+    dominantUnitFamily !== "none" &&
     (s.unitFamilyHits[dominantUnitFamily as Exclude<UnitFamily, "mixed" | "none">] ?? 0) > 0
   ).length / totalSamples;
 

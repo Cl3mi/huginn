@@ -28,8 +28,8 @@ test("detectDomainSignals identifies pharma unit family", () => {
 
 test("buildDomainProfile returns dominant family from samples", () => {
   const samples: DomainSignalSample[] = [
-    { reqFamilyHits: { german_modal: 5, rfc2119: 0, legal: 0, french_modal: 0 }, unitFamilyHits: { mechanical: 3, electrical: 0, pharma: 0, financial: 0, logistics: 0 }, refFormatHits: {} },
-    { reqFamilyHits: { german_modal: 3, rfc2119: 1, legal: 0, french_modal: 0 }, unitFamilyHits: { mechanical: 5, electrical: 0, pharma: 0, financial: 0, logistics: 0 }, refFormatHits: {} },
+    { reqFamilyHits: { german_modal: 5, rfc2119: 0, legal: 0, french_modal: 0, none: 0 }, unitFamilyHits: { mechanical: 3, electrical: 0, pharma: 0, financial: 0, logistics: 0 }, refFormatHits: {} },
+    { reqFamilyHits: { german_modal: 3, rfc2119: 1, legal: 0, french_modal: 0, none: 0 }, unitFamilyHits: { mechanical: 5, electrical: 0, pharma: 0, financial: 0, logistics: 0 }, refFormatHits: {} },
   ];
   const profile = buildDomainProfile(samples, []);
   expect(profile.requirementLanguageFamily).toBe("german_modal");
@@ -38,7 +38,7 @@ test("buildDomainProfile returns dominant family from samples", () => {
 
 test("buildDomainProfile returns none when no signals found", () => {
   const samples: DomainSignalSample[] = [
-    { reqFamilyHits: { german_modal: 0, rfc2119: 0, legal: 0, french_modal: 0 }, unitFamilyHits: { mechanical: 0, electrical: 0, pharma: 0, financial: 0, logistics: 0 }, refFormatHits: {} },
+    { reqFamilyHits: { german_modal: 0, rfc2119: 0, legal: 0, french_modal: 0, none: 0 }, unitFamilyHits: { mechanical: 0, electrical: 0, pharma: 0, financial: 0, logistics: 0 }, refFormatHits: {} },
   ];
   const profile = buildDomainProfile(samples, []);
   expect(profile.requirementLanguageFamily).toBe("none");
