@@ -63,7 +63,7 @@ function coherenceScore(text: string, family: RequirementLanguageFamily): number
 
 function specificityScore(text: string, unitFamily: UnitFamily): number {
   let score = 0;
-  const pattern = unitFamily !== "none" ? UNIT_PATTERNS[unitFamily] : UNIT_PATTERNS.mechanical;
+  const pattern = UNIT_PATTERNS[unitFamily];
   const unitMatches = text.match(new RegExp(pattern.source, "gi")) ?? [];
   score += Math.min(0.4, unitMatches.length * 0.1);
   if (PART_NUMBER.test(text)) score += 0.2;

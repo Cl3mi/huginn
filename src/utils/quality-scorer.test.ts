@@ -16,14 +16,14 @@ test("prose with german requirements scores higher with german_modal hint", asyn
   const text = "Der Werkstoff muss eine Zugfestigkeit von mindestens 500 MPa aufweisen und soll korrosionsbeständig sein.";
   const noHint = await scoreBlock(text, "prose", {});
   const withHint = await scoreBlock(text, "prose", { requirementLanguageFamily: "german_modal" });
-  expect(withHint).toBeGreaterThanOrEqual(noHint);
+  expect(withHint).toBeGreaterThan(noHint);
 });
 
 test("spec_value with measurement units scores higher with matching unit family", async () => {
   const text = "Zugfestigkeit: 500 MPa, Härte: 200 HV, Toleranz: ±0.05 mm";
   const noHint = await scoreBlock(text, "spec_value", {});
   const withHint = await scoreBlock(text, "spec_value", { dominantUnitFamily: "mechanical" });
-  expect(withHint).toBeGreaterThanOrEqual(noHint);
+  expect(withHint).toBeGreaterThan(noHint);
 });
 
 test("short repetitive text scores low", async () => {
