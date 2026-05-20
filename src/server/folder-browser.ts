@@ -40,7 +40,7 @@ export async function browseFolder(root: string, requestedPath: string): Promise
   const safeRoot = resolve(root);
   const safePath = resolve(requestedPath);
 
-  if (!safePath.startsWith(safeRoot)) {
+  if (safePath !== safeRoot && !safePath.startsWith(safeRoot + "/")) {
     throw new FolderBrowseError(403, `Path '${requestedPath}' is outside the documents root`);
   }
 

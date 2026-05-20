@@ -60,4 +60,15 @@ describe("browseFolder", () => {
   test("resolves symlink-escaped paths as 403", async () => {
     await expect(browseFolder(ROOT, ROOT + "/../etc")).rejects.toThrow(FolderBrowseError);
   });
+
+  test("throws FolderBrowseError(403) for sibling directory with prefix-matching name", async () => {
+    // e.g. /tmp/huginn-browse-test2 would bypass naive startsWith check
+    const siblingPath = TMP + "2"; // /tmp/huginn-browse-test2
+    await expect(browseFolder(ROOT, siblingPath)).rejects.toThrow(FolderBrowseError);
+    try {
+      await browseFolder(ROOT, siblingPath);
+    } catch (e) {
+      expect((e as FolderBrowseError).status).toBe(403);
+    }
+  });
 });
