@@ -14,6 +14,7 @@ import { cleanContent, classifyBlock, BOILERPLATE_PATTERNS } from "../utils/clea
 import { filterChunk } from "../utils/chunk-filter.ts";
 import { scoreBlock } from "../utils/quality-scorer.ts";
 import { detectDomainSignals, buildDomainProfile, type DomainSignalSample } from "../utils/domain-detector.ts";
+import { _lastAccumulator } from "./2-parse.ts";
 
 // ── Accumulator: shared state collected during Phase 2 ─────────────────────
 
@@ -474,7 +475,12 @@ function buildCorpusSummary(
 
 // ── Phase 9 main entry point ───────────────────────────────────────────────
 
-export async function runProjection(state: ScannerState, acc: ProjectionAccumulator): Promise<void> {
+export async function runProjection(state: ScannerState): Promise<void> {
+  const acc = _lastAccumulator;
+  if (!acc) {
+    logger.warn("Phase 9: no accumulator from Phase 2 — skipping corpus analysis");
+    return;
+  }
   setPhase("9-projection");
   logger.info("Phase 9: Ingestion Projection — corpus analysis", {
     projections: state.ingestionProjections.length,
