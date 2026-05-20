@@ -252,12 +252,10 @@ function isPrivacySafe(normalizedForm: string): boolean {
 }
 
 function generateRegex(key: string): string {
-  const withPlaceholders = key
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return "^" + escaped
     .replace(/\bdate\b/g, "\\d{2}\\.\\d{2}\\.\\d{4}")
-    .replace(/\bN\b/g, "\\d+")
-    .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-    .replace(/\\\\d/g, "\\d");
-  return `^${withPlaceholders}$`;
+    .replace(/\bN\b/g, "\\d+") + "$";
 }
 
 function discoverBoilerplatePatterns(
