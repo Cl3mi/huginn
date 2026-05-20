@@ -7,6 +7,13 @@ export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 let currentPhase = "startup";
 let logFilePath: string | null = null;
 
+type ProgressCb = (event: Record<string, unknown>) => void;
+let _progressCb: ProgressCb | null = null;
+
+export function setProgressCallback(cb: ProgressCb | null): void {
+  _progressCb = cb;
+}
+
 export function setPhase(phase: string): void {
   currentPhase = phase;
 }
@@ -42,6 +49,10 @@ function log(level: LogLevel, message: string, data?: unknown): void {
   } catch (e) {
     process.stderr.write(`[logger] log file write failed: ${String(e)}\n`);
   }
+
+  if ((level === "WARN" || level === "ERROR") && _progressCb) {
+    _progressCb({ type: "log", level, phase: currentPhase, message });
+  }
 }
 
 export const logger = {
@@ -53,11 +64,13 @@ export const logger = {
   phaseStart: (phase: string) => {
     setPhase(phase);
     log("INFO", `Phase started: ${phase}`);
+    if (_progressCb) _progressCb({ type: "phase_start", phase });
     return Date.now();
   },
 
   phaseEnd: (phase: string, startTime: number, extra?: unknown) => {
     const durationMs = Date.now() - startTime;
     log("INFO", `Phase completed: ${phase}`, { durationMs, ...((extra as object) ?? {}) });
+    if (_progressCb) _progressCb({ type: "phase_end", phase, durationMs });
   },
 };
