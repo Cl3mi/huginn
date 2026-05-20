@@ -40,7 +40,7 @@
 - Create: `src/utils/token-estimator.ts`
 - Create: `src/utils/token-estimator.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // src/utils/token-estimator.test.ts
@@ -88,14 +88,14 @@ test("estimateChunkTokens falls back to 1.0 for unknown type", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/token-estimator.test.ts
 ```
 Expected: `error: Cannot find module './token-estimator.ts'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/utils/token-estimator.ts
@@ -126,14 +126,14 @@ export function estimateChunkTokens(content: string, chunkType: ChunkType | stri
 }
 ```
 
-- [ ] **Step 4: Run to confirm pass**
+- [x] **Step 4: Run to confirm pass**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/token-estimator.test.ts
 ```
 Expected: all 7 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/utils/token-estimator.ts src/utils/token-estimator.test.ts
@@ -148,7 +148,7 @@ git commit -m "feat: add token estimator utility (ported from Muninn)"
 - Create: `src/utils/chunk-filter.ts`
 - Create: `src/utils/chunk-filter.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // src/utils/chunk-filter.test.ts
@@ -187,14 +187,14 @@ test("passes exactly-20-char text with good ratios", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/chunk-filter.test.ts
 ```
 Expected: `error: Cannot find module './chunk-filter.ts'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/utils/chunk-filter.ts
@@ -224,14 +224,14 @@ export function filterChunk(content: string): FilteredChunk {
 }
 ```
 
-- [ ] **Step 4: Run to confirm pass**
+- [x] **Step 4: Run to confirm pass**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/chunk-filter.test.ts
 ```
 Expected: all 5 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/utils/chunk-filter.ts src/utils/chunk-filter.test.ts
@@ -248,7 +248,7 @@ git commit -m "feat: add chunk filter utility (ported from Muninn)"
 
 Depends on: Task 1 (token-estimator).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // src/utils/cleaner.test.ts
@@ -317,14 +317,14 @@ test("classifyBlock returns prose for regular sentences", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/cleaner.test.ts
 ```
 Expected: `error: Cannot find module './cleaner.ts'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/utils/cleaner.ts
@@ -441,14 +441,14 @@ export function classifyBlock(text: string): "header" | "spec_value" | "table_ro
 }
 ```
 
-- [ ] **Step 4: Run to confirm pass**
+- [x] **Step 4: Run to confirm pass**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/cleaner.test.ts
 ```
 Expected: all 11 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/utils/cleaner.ts src/utils/cleaner.test.ts
@@ -465,7 +465,7 @@ git commit -m "feat: add cleaner utility (ported from Muninn)"
 
 Adapted from Muninn: `specificityScore` and `coherenceScore` accept a `DomainHints` parameter so they work beyond German automotive.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // src/utils/quality-scorer.test.ts
@@ -517,14 +517,14 @@ test("score is always between 0 and 1", async () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/quality-scorer.test.ts
 ```
 Expected: `error: Cannot find module './quality-scorer.ts'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/utils/quality-scorer.ts
@@ -605,14 +605,14 @@ function specificityScore(text: string, unitFamily: UnitFamily): number {
 }
 ```
 
-- [ ] **Step 4: Run to confirm pass**
+- [x] **Step 4: Run to confirm pass**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/quality-scorer.test.ts
 ```
 Expected: all 6 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/utils/quality-scorer.ts src/utils/quality-scorer.test.ts
@@ -627,7 +627,7 @@ git commit -m "feat: add quality scorer utility (domain-aware, ported from Munin
 - Create: `src/utils/domain-detector.ts`
 - Create: `src/utils/domain-detector.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // src/utils/domain-detector.test.ts
@@ -678,14 +678,14 @@ test("buildDomainProfile returns none when no signals found", () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/domain-detector.test.ts
 ```
 Expected: `error: Cannot find module './domain-detector.ts'`
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```typescript
 // src/utils/domain-detector.ts
@@ -810,14 +810,14 @@ export function buildDomainProfile(
 }
 ```
 
-- [ ] **Step 4: Run to confirm pass**
+- [x] **Step 4: Run to confirm pass**
 
 ```bash
 cd /home/clemi/huginn && bun test src/utils/domain-detector.test.ts
 ```
 Expected: all 6 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/utils/domain-detector.ts src/utils/domain-detector.test.ts
@@ -833,9 +833,9 @@ git commit -m "feat: add domain detector utility"
 
 Add 7 new interfaces and 5 new fields to `ScannerState`. Also update `createInitialState`.
 
-- [ ] **Step 1: Add imports needed by new types (none — all types are self-contained)**
+- [x] **Step 1: Add imports needed by new types (none — all types are self-contained)**
 
-- [ ] **Step 2: Add new interfaces after the existing `ConsistencyCheck` interface**
+- [x] **Step 2: Add new interfaces after the existing `ConsistencyCheck` interface**
 
 In `src/state.ts`, after line 176 (end of `ConsistencyCheck` interface), insert:
 
@@ -940,7 +940,7 @@ export interface DomainProfile {
 }
 ```
 
-- [ ] **Step 3: Add 5 new fields to `ScannerState` interface**
+- [x] **Step 3: Add 5 new fields to `ScannerState` interface**
 
 In `ScannerState`, after `consistencyChecks: ConsistencyCheck[];`, add:
 
@@ -953,7 +953,7 @@ In `ScannerState`, after `consistencyChecks: ConsistencyCheck[];`, add:
   domainProfile: DomainProfile;
 ```
 
-- [ ] **Step 4: Update `createInitialState` to initialise new fields**
+- [x] **Step 4: Update `createInitialState` to initialise new fields**
 
 Add to the return object in `createInitialState`:
 
@@ -980,14 +980,14 @@ Add to the return object in `createInitialState`:
     },
 ```
 
-- [ ] **Step 5: Type-check**
+- [x] **Step 5: Type-check**
 
 ```bash
 cd /home/clemi/huginn && bun run typecheck
 ```
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/state.ts
@@ -1004,7 +1004,7 @@ git commit -m "feat: add Phase 9 state types to ScannerState"
 
 `ProjectionAccumulator` is created once in Phase 2's document loop and collects line frequencies and domain signal samples. `projectDocument` is called per document.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```typescript
 // src/phases/9-projection.test.ts
@@ -1092,14 +1092,14 @@ test("blockTypeDistribution sums to approximately 1.0", async () => {
 });
 ```
 
-- [ ] **Step 2: Run to confirm failure**
+- [x] **Step 2: Run to confirm failure**
 
 ```bash
 cd /home/clemi/huginn && bun test src/phases/9-projection.test.ts
 ```
 Expected: `error: Cannot find module './9-projection.ts'`
 
-- [ ] **Step 3: Implement `src/phases/9-projection.ts` (Phase 9a + scaffolding)**
+- [x] **Step 3: Implement `src/phases/9-projection.ts` (Phase 9a + scaffolding)**
 
 ```typescript
 // src/phases/9-projection.ts
@@ -1623,14 +1623,14 @@ export async function runProjection(state: ScannerState, acc: ProjectionAccumula
 }
 ```
 
-- [ ] **Step 4: Run to confirm pass**
+- [x] **Step 4: Run to confirm pass**
 
 ```bash
 cd /home/clemi/huginn && bun test src/phases/9-projection.test.ts
 ```
 Expected: all 5 tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/phases/9-projection.ts src/phases/9-projection.test.ts
@@ -1648,7 +1648,7 @@ Phase 2 creates a `ProjectionAccumulator`, calls `projectDocument` for each succ
 
 To avoid a circular import (`state.ts` → `9-projection.ts` → `state.ts`), the accumulator is **not** stored on `ScannerState`. Instead, `2-parse.ts` exports a module-level variable that `9-projection.ts` reads.
 
-- [ ] **Step 1: Export accumulator from Phase 2**
+- [x] **Step 1: Export accumulator from Phase 2**
 
 In `src/phases/2-parse.ts`, at module scope (outside any function), add:
 ```typescript
@@ -1674,7 +1674,7 @@ _lastAccumulator = projectionAcc;
 logger.info("Phase 9a complete", { projectedDocs: state.ingestionProjections.length });
 ```
 
-- [ ] **Step 2: Read accumulator in Phase 9**
+- [x] **Step 2: Read accumulator in Phase 9**
 
 In `src/phases/9-projection.ts`, update `runProjection` signature and body to import the accumulator:
 ```typescript
@@ -1690,14 +1690,14 @@ export async function runProjection(state: ScannerState): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: Type-check**
+- [x] **Step 3: Type-check**
 
 ```bash
 cd /home/clemi/huginn && bun run typecheck
 ```
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/phases/2-parse.ts src/state.ts
@@ -1712,7 +1712,7 @@ git commit -m "feat: wire Phase 9a projection into Phase 2 parse loop"
 - Modify: `src/index.ts`
 - Modify: `src/phases/8-report.ts`
 
-- [ ] **Step 1: Add Phase 9 to the pipeline in `src/index.ts`**
+- [x] **Step 1: Add Phase 9 to the pipeline in `src/index.ts`**
 
 At the top, add the import:
 ```typescript
@@ -1727,7 +1727,7 @@ In the `phases` array in `main()`, insert after `"2-parse"`:
     },
 ```
 
-- [ ] **Step 2: Serialise new fields in `src/phases/8-report.ts`**
+- [x] **Step 2: Serialise new fields in `src/phases/8-report.ts`**
 
 Find the `serializeState` function (or the section that builds the JSON output object). Add the five new top-level keys to the serialized report object:
 
@@ -1760,21 +1760,21 @@ function deepTruncateStrings(obj: unknown, exemptKeys: Set<string> = new Set(["s
 
 Update the `deepTruncateStrings` call signature if needed to thread the exempt keys through recursive calls.
 
-- [ ] **Step 3: Type-check**
+- [x] **Step 3: Type-check**
 
 ```bash
 cd /home/clemi/huginn && bun run typecheck
 ```
 Expected: no errors.
 
-- [ ] **Step 4: Run all tests**
+- [x] **Step 4: Run all tests**
 
 ```bash
 cd /home/clemi/huginn && bun test
 ```
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/index.ts src/phases/8-report.ts
@@ -1792,7 +1792,7 @@ This is a standalone CLI tool: `bun src/phases/8-html.ts <path-to-scan-report.js
 
 The style (dark theme, IBM Plex Mono, Chart.js) is ported from the reference HTML at `/home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.html`. The data is embedded via `<script id="report-data" type="application/json">` and read by `window.__huginnData` exactly as in the reference.
 
-- [ ] **Step 1: Create the scaffold**
+- [x] **Step 1: Create the scaffold**
 
 ```typescript
 // src/phases/8-html.ts
@@ -1859,11 +1859,11 @@ function esc(s: string): string {
 }
 ```
 
-- [ ] **Step 2: Add the CSS constant**
+- [x] **Step 2: Add the CSS constant**
 
 Port the CSS from the reference HTML (lines 7–1243 of the reference file). Extract as a template literal `const CSS = \`...\``. The reference file is at `/home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.html` — read lines 7–1240 for the style block content.
 
-- [ ] **Step 3: Port existing section functions from reference HTML**
+- [x] **Step 3: Port existing section functions from reference HTML**
 
 For each of the following sections, port the HTML and JS from the reference file into a TypeScript function that accepts `data` and returns an HTML string with an inline `<script>` block:
 
@@ -1877,14 +1877,14 @@ For each of the following sections, port the HTML and JS from the reference file
 - `sectionParseHealth(data)` — parse health + OCR (lines 7013–7055); add OCR token loss note using `data.corpusTokenSummary`
 - `sectionConsistencyChecks(data)` — checks table (lines 7056–end)
 
-- [ ] **Step 4: Smoke test**
+- [x] **Step 4: Smoke test**
 
 ```bash
 cd /home/clemi/huginn && bun src/phases/8-html.ts /home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.json
 ```
 Expected: `HTML report written to: /home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.html` with no errors. Open in browser and verify header and existing sections render.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/phases/8-html.ts
@@ -1898,7 +1898,7 @@ git commit -m "feat: add HTML report generator scaffold with existing sections"
 **Files:**
 - Modify: `src/phases/8-html.ts`
 
-- [ ] **Step 1: Implement `sectionMuninnConfig`**
+- [x] **Step 1: Implement `sectionMuninnConfig`**
 
 ```typescript
 function sectionMuninnConfig(data: Record<string, unknown>): string {
@@ -1959,14 +1959,14 @@ function sectionMuninnConfig(data: Record<string, unknown>): string {
 }
 ```
 
-- [ ] **Step 2: Smoke test**
+- [x] **Step 2: Smoke test**
 
 ```bash
 cd /home/clemi/huginn && bun src/phases/8-html.ts /home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.json
 ```
 Open HTML in browser. The Muninn Config section should be visible near the top (the existing JSON has no `muninnConfig` key yet, so it renders empty — verify graceful empty-state rendering).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/phases/8-html.ts
@@ -1980,7 +1980,7 @@ git commit -m "feat: add Muninn Config Recommendations section to HTML report"
 **Files:**
 - Modify: `src/phases/8-html.ts`
 
-- [ ] **Step 1: Implement `sectionIngestionIntelligence`**
+- [x] **Step 1: Implement `sectionIngestionIntelligence`**
 
 ```typescript
 function sectionIngestionIntelligence(data: Record<string, unknown>): string {
@@ -2070,14 +2070,14 @@ function sectionIngestionIntelligence(data: Record<string, unknown>): string {
 }
 ```
 
-- [ ] **Step 2: Smoke test**
+- [x] **Step 2: Smoke test**
 
 ```bash
 cd /home/clemi/huginn && bun src/phases/8-html.ts /home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.json
 ```
 Open in browser. Ingestion Intelligence section should render with empty charts (no Phase 9 data yet). Verify no JS errors in console.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/phases/8-html.ts
@@ -2091,7 +2091,7 @@ git commit -m "feat: add Ingestion Intelligence section to HTML report"
 **Files:**
 - Modify: `src/phases/8-html.ts`
 
-- [ ] **Step 1: Implement `sectionBoilerplateDiscovery`**
+- [x] **Step 1: Implement `sectionBoilerplateDiscovery`**
 
 ```typescript
 function sectionBoilerplateDiscovery(data: Record<string, unknown>): string {
@@ -2140,14 +2140,14 @@ function sectionBoilerplateDiscovery(data: Record<string, unknown>): string {
 }
 ```
 
-- [ ] **Step 2: Smoke test**
+- [x] **Step 2: Smoke test**
 
 ```bash
 cd /home/clemi/huginn && bun src/phases/8-html.ts /home/clemi/work/RAG/scan-report-2026-03-26T13-37-16.json
 ```
 Open in browser. Boilerplate section should render with empty state message (no data yet). Verify no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/phases/8-html.ts
@@ -2159,6 +2159,12 @@ git commit -m "feat: add Boilerplate Discovery section to HTML report"
 ## Task 14: End-to-end Smoke Test
 
 Run the full scanner against the test documents to verify Phase 9 JSON output, then generate the HTML report with real Phase 9 data.
+
+**Prerequisites (check before starting):**
+- `_test-docs/` must contain actual documents to scan (it is currently **empty** — copy or symlink some PDFs/Word docs/plain-text files there before running)
+- `reports/` directory must exist: `mkdir -p /home/clemi/huginn/reports`
+- Docker with GPU access must be available (`docker-compose.gpu.yml` adds the GPU override if needed)
+- Ollama models are pulled automatically by the `ollama-init` service on first run
 
 - [ ] **Step 1: Run full scan (requires Docker with Tika + Ollama)**
 
