@@ -453,12 +453,16 @@ function renderTree(data) {
     return;
   }
   tree.innerHTML = data.entries.map(e => {
-    return `<div class="tree-item" onclick="selectFolder('${data.path}/${e.name}', this)" data-path="${data.path}/${e.name}">
+    const fullPath = data.path + '/' + e.name;
+    return `<div class="tree-item" data-path="${fullPath.replace(/"/g, '&quot;')}">
       <span class="tree-icon">📁</span>
       <span>${e.name}/</span>
       <span class="tree-count">${e.fileCount} file${e.fileCount !== 1 ? 's' : ''}</span>
     </div>`;
   }).join('');
+  tree.querySelectorAll('.tree-item[data-path]').forEach(el => {
+    el.addEventListener('click', () => selectFolder(el.dataset.path, el));
+  });
 }
 
 function selectFolder(path, el) {
@@ -467,7 +471,7 @@ function selectFolder(path, el) {
   document.querySelectorAll('.tree-item').forEach(i => i.classList.remove('selected'));
   if (el) el.classList.add('selected');
   const h = state.health;
-  document.getElementById('btn-start').disabled = !(h && h.ollamaOk);
+  document.getElementById('btn-start').disabled = !(h && h.ollamaOk && state.selectedFolder);
   fetch('/api/browse?path=' + encodeURIComponent(path))
     .then(r => r.json())
     .then(data => {
