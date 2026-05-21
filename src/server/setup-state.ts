@@ -15,7 +15,9 @@ export type SetupState = {
 
 const CURRENT_SCHEMA_VERSION = 1;
 
-export const SETUP_FILE_PATH = "/app/state/setup.json";
+// Inside the scanner container the default lives in the writable layer at
+// /app/state/setup.json (no bind mount). Dev runs override via SETUP_FILE_PATH.
+export const SETUP_FILE_PATH = process.env["SETUP_FILE_PATH"] ?? "/app/state/setup.json";
 
 // In-memory singleton — lives here (not in server/index.ts) to avoid the
 // routes.ts -> server/index.ts -> routes.ts circular import.
