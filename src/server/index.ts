@@ -5,6 +5,34 @@ import { checkOllamaHealth } from "../llm/ollama.ts";
 import { runRegexTests } from "../utils/regex-patterns.ts";
 import { handleRequest } from "./routes.ts";
 import { healthState } from "./health-state.ts";
+import {
+  loadSetupState,
+  autoRecoverIfPossible,
+  setupHolder,
+  applySetupState,
+  SETUP_FILE_PATH,
+} from "./setup-state.ts";
+
+async function initSetup(): Promise<void> {
+  const loaded = loadSetupState(SETUP_FILE_PATH);
+  if (loaded && loaded.installedChatModel) {
+    applySetupState(loaded);
+    logger.info("setup state loaded from disk", { model: loaded.installedChatModel });
+    return;
+  }
+  const recovered = await autoRecoverIfPossible(SETUP_FILE_PATH, async () => {
+    const { modelsAvailable } = await checkOllamaHealth();
+    return modelsAvailable;
+  });
+  if (recovered) {
+    applySetupState(recovered);
+    logger.info("setup state auto-recovered from Ollama", { model: recovered.installedChatModel });
+    return;
+  }
+  setupHolder.current = null;
+  healthState.setupReady = false;
+  logger.info("setup required: no chat model installed");
+}
 
 async function start() {
   const regexResult = runRegexTests();
@@ -22,7 +50,12 @@ async function start() {
   healthState.modelsAvailable = modelsAvailable;
 
   if (!tikaOk) logger.warn("Tika unreachable — PDF parsing will be skipped");
-  if (!ollamaOk) logger.warn("Ollama unreachable — LLM features disabled");
+  if (!ollamaOk) {
+    logger.error("Ollama unreachable — aborting (hard gate)");
+    process.exit(1);
+  }
+
+  await initSetup();
 
   setInterval(async () => {
     const [t, { ok: o, modelsAvailable: m }] = await Promise.all([
@@ -36,12 +69,15 @@ async function start() {
 
   Bun.serve({
     port: CONFIG.serverPort,
-    idleTimeout: 0, // disable — SSE streams are long-lived; per-stream keepalive in handleStatus
+    idleTimeout: 0,
     fetch: handleRequest,
   });
 
   logger.info(`Huginn server ready`, { url: `http://localhost:${CONFIG.serverPort}` });
   console.log(`\n  Huginn ready → http://localhost:${CONFIG.serverPort}\n`);
+  if (!healthState.setupReady) {
+    console.log("  Setup required — open the UI to install a chat model.\n");
+  }
 }
 
 start().catch(e => {

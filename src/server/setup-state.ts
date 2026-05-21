@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync } from "
 import { dirname } from "path";
 import { CATALOG } from "../llm/model-catalog.ts";
 import type { DetectedHardware, RankedEntry } from "../llm/model-fit.ts";
+import { healthState } from "./health-state.ts";
 
 export type SetupState = {
   schemaVersion: 1;
@@ -72,4 +73,13 @@ export async function autoRecoverIfPossible(
   };
   saveSetupState(filePath, state);
   return state;
+}
+
+export function applySetupState(next: SetupState): void {
+  setupHolder.current = next;
+  saveSetupState(SETUP_FILE_PATH, next);
+  if (next.installedChatModel) {
+    process.env["OLLAMA_CHAT_MODEL"] = next.installedChatModel;
+  }
+  healthState.setupReady = next.installedChatModel !== null;
 }
