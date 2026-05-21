@@ -106,6 +106,7 @@ async function handleStartScan(req: Request): Promise<Response> {
 
 function handleStatus(): Response {
   const clientId = randomUUID();
+  let heartbeat: ReturnType<typeof setInterval> | null = null;
   const stream = new ReadableStream<string>({
     start(controller) {
       broadcaster.add(clientId, controller);
@@ -114,8 +115,13 @@ function handleStatus(): Response {
       } else if (scanState.status === "error") {
         controller.enqueue(`data: ${JSON.stringify({ type: "scan_error", phase: scanState.phase, message: scanState.message })}\n\n`);
       }
+      // SSE comment lines (start with `:`) are ignored by EventSource — pure keepalive.
+      heartbeat = setInterval(() => {
+        try { controller.enqueue(`: keepalive\n\n`); } catch { /* stream closed */ }
+      }, 20_000);
     },
     cancel() {
+      if (heartbeat) { clearInterval(heartbeat); heartbeat = null; }
       broadcaster.remove(clientId);
     },
   });

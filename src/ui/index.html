@@ -560,7 +560,7 @@ function stopElapsed() {
 function renderPhaseList(containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
-  el.innerHTML = state.phases.map(p => {
+  el.innerHTML = state.phases.map((p, i) => {
     const cls = p.status === 'running' ? 'p-running' : p.status === 'done' ? '' : p.status === 'error' ? '' : 'p-pending';
     const icon = p.status === 'done' ? `<span style="color:var(--success);font-size:.85rem;">✓</span>`
       : p.status === 'running' ? `<span class="spinner" style="color:var(--warning);"></span>`
@@ -571,7 +571,7 @@ function renderPhaseList(containerId) {
       : p.status === 'running' ? '…' : '—';
     const nameColor = p.status === 'running' ? 'p-running' : p.status === 'done' ? 'p-done' : 'p-pending';
     return `<div class="phase-row ${cls}">
-      <span class="phase-num">${p.name.split('-')[0]}</span>
+      <span class="phase-num">${i + 1}</span>
       ${icon}
       <span class="phase-name ${nameColor}">${p.label}</span>
       <span class="phase-time${p.status==='running'?' running':''}">${time}</span>
@@ -730,9 +730,9 @@ function renderCompleteScreen(scanId) {
 
   document.getElementById('complete-phases').innerHTML =
     '<div style="display:flex;flex-direction:column;gap:2px;">' +
-    state.phases.map(p =>
+    state.phases.map((p, i) =>
       `<div class="pd-row">
-        <span class="pd-num">${p.name.split('-')[0]}</span>
+        <span class="pd-num">${i + 1}</span>
         <span style="color:var(--success);font-size:.85rem;">✓</span>
         <span class="pd-name">${p.label}</span>
         <span class="pd-time">${p.durationMs != null ? (p.durationMs/1000).toFixed(0)+'s' : '—'}</span>

@@ -78,9 +78,11 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
   ];
 
   for (const phase of phases) {
+    const startedAt = Date.now();
     onProgress?.({ type: "phase_start", phase: phase.name, phaseIndex: phase.idx, totalPhases: 9 });
     try {
       await phase.fn();
+      onProgress?.({ type: "phase_end", phase: phase.name, durationMs: Date.now() - startedAt });
     } catch (e) {
       onProgress?.({ type: "scan_error", phase: phase.name, message: String(e).slice(0, 200) });
       try {

@@ -36,6 +36,7 @@ async function start() {
 
   Bun.serve({
     port: CONFIG.serverPort,
+    idleTimeout: 0, // disable — SSE streams are long-lived; per-stream keepalive in handleStatus
     fetch: handleRequest,
   });
 
