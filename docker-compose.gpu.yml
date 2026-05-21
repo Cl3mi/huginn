@@ -1,7 +1,19 @@
 # GPU override — apply on NVIDIA machines:
 #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
+#
+# Ollama uses the GPU for inference. The scanner is given GPU visibility too —
+# not for compute, but so nvidia-smi works inside the container for hardware
+# detection during the setup wizard (see src/llm/model-fit.ts).
 services:
   ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+  scanner:
     deploy:
       resources:
         reservations:
