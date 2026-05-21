@@ -164,6 +164,46 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
   </div>
 </div>
 
+<div class="screen" id="screen-wizard">
+  <div class="page" style="max-width:680px;">
+    <div class="page-header">
+      <div class="page-title">Setting up Huginn</div>
+      <div class="page-subtitle" id="wizard-subtitle">Detecting hardware...</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Recommended model</div>
+
+      <div id="wizard-detected" class="field-hint" style="margin-bottom:1rem;"></div>
+
+      <div id="wizard-recommended" style="display:none;">
+        <div style="font-family:var(--font-heading);font-size:1.125rem;font-weight:600;margin-bottom:.25rem;" id="wizard-rec-name"></div>
+        <div class="field-hint" id="wizard-rec-meta" style="margin-bottom:.5rem;"></div>
+        <div class="field-hint" id="wizard-rec-notes" style="margin-bottom:1rem;"></div>
+        <div class="actions">
+          <button class="btn-primary" id="btn-wizard-install">Install and continue</button>
+          <button class="btn-secondary" id="btn-wizard-toggle-alt">Show alternatives</button>
+        </div>
+      </div>
+
+      <div id="wizard-alternatives" style="display:none;margin-top:1.25rem;border-top:1px solid var(--border);padding-top:1rem;"></div>
+
+      <div id="wizard-progress" style="display:none;margin-top:1rem;">
+        <div class="progress-label">
+          <span id="wizard-progress-label">Downloading...</span>
+          <span id="wizard-progress-bytes">0 / 0</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="wizard-progress-fill"></div></div>
+        <div class="actions" style="margin-top:.75rem;">
+          <button class="btn-secondary" id="btn-wizard-cancel">Cancel</button>
+        </div>
+      </div>
+
+      <div class="alert alert-error" id="wizard-error" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
 <div class="screen active" id="screen-setup">
   <div class="page">
     <div class="page-header">
@@ -401,6 +441,205 @@ function showScreen(name) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + name).classList.add('active');
   state.screen = name;
+}
+
+// ---- Model setup wizard ----
+const wizardEl = {
+  screen: document.getElementById("screen-wizard"),
+  subtitle: document.getElementById("wizard-subtitle"),
+  detected: document.getElementById("wizard-detected"),
+  recommended: document.getElementById("wizard-recommended"),
+  recName: document.getElementById("wizard-rec-name"),
+  recMeta: document.getElementById("wizard-rec-meta"),
+  recNotes: document.getElementById("wizard-rec-notes"),
+  btnInstall: document.getElementById("btn-wizard-install"),
+  btnToggleAlt: document.getElementById("btn-wizard-toggle-alt"),
+  alternatives: document.getElementById("wizard-alternatives"),
+  progress: document.getElementById("wizard-progress"),
+  progressLabel: document.getElementById("wizard-progress-label"),
+  progressBytes: document.getElementById("wizard-progress-bytes"),
+  progressFill: document.getElementById("wizard-progress-fill"),
+  btnCancel: document.getElementById("btn-wizard-cancel"),
+  errorBox: document.getElementById("wizard-error"),
+};
+
+let wizardCandidates = [];
+let wizardRecommended = null;
+let wizardSelectedModelId = null;
+let wizardSse = null;
+
+function fmtGb(bytes) {
+  return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB";
+}
+
+function fmtBytes(bytes) {
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(0) + " KB";
+  if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+  return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB";
+}
+
+async function showWizard() {
+  showScreen('wizard');
+  wizardEl.subtitle.textContent = "Detecting hardware...";
+  wizardEl.detected.textContent = "";
+  wizardEl.recommended.style.display = "none";
+  wizardEl.alternatives.style.display = "none";
+  wizardEl.progress.style.display = "none";
+  wizardEl.errorBox.style.display = "none";
+  ensureWizardSse();
+  try {
+    const res = await fetch("/api/setup/recommendation");
+    const data = await res.json();
+    wizardCandidates = data.candidates;
+    wizardRecommended = data.candidates.find((c) => c.recommended) || null;
+    wizardSelectedModelId = wizardRecommended ? wizardRecommended.id : null;
+    const d = data.detected;
+    wizardEl.detected.textContent = d.gpuAvailable
+      ? `Detected: NVIDIA GPU, ${d.vramGb} GB VRAM`
+      : "Detected: no NVIDIA GPU — running on CPU (slower)";
+    wizardEl.subtitle.textContent = "Pick a model to install.";
+    if (wizardRecommended) {
+      wizardEl.recName.textContent = wizardRecommended.displayName;
+      wizardEl.recMeta.textContent = fmtGb(wizardRecommended.downloadSizeBytes) + " download · " +
+        (wizardRecommended.minVramGb === 0 ? "CPU-viable" : wizardRecommended.minVramGb + " GB VRAM min") +
+        (wizardRecommended.huginnValidated ? "" : " · untested with Huginn");
+      wizardEl.recNotes.textContent = wizardRecommended.notes;
+      wizardEl.recommended.style.display = "block";
+    }
+    renderWizardAlternatives();
+  } catch (e) {
+    wizardEl.errorBox.style.display = "block";
+    wizardEl.errorBox.textContent = "Could not load recommendation: " + e.message;
+  }
+}
+
+function renderWizardAlternatives() {
+  wizardEl.alternatives.innerHTML = "";
+  const others = wizardCandidates.filter((c) => !wizardRecommended || c.id !== wizardRecommended.id);
+  for (const c of others) {
+    const row = document.createElement("div");
+    row.style.cssText = "padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;";
+    const fitBadge = c.fits ? "" : ' <span style="color:var(--warning);font-size:.7rem;">needs more VRAM</span>';
+    const validatedBadge = c.huginnValidated ? "" : ' <span style="color:var(--text-muted);font-size:.7rem;">untested</span>';
+    row.innerHTML =
+      '<div style="flex:1;">' +
+        '<div style="font-weight:500;">' + c.displayName + fitBadge + validatedBadge + '</div>' +
+        '<div class="field-hint">' + fmtGb(c.downloadSizeBytes) + ' · ' + (c.minVramGb === 0 ? "CPU-viable" : c.minVramGb + " GB VRAM min") + '</div>' +
+      '</div>' +
+      '<button class="btn-secondary" data-model-id="' + c.id + '"' + (c.fits ? "" : " disabled") + '>Install</button>';
+    const btn = row.querySelector("button");
+    if (btn && c.fits) {
+      btn.addEventListener("click", (e) => {
+        const id = e.currentTarget.getAttribute("data-model-id");
+        startWizardInstall(id);
+      });
+    }
+    wizardEl.alternatives.appendChild(row);
+  }
+}
+
+if (wizardEl.btnToggleAlt) wizardEl.btnToggleAlt.addEventListener("click", () => {
+  const showing = wizardEl.alternatives.style.display === "block";
+  wizardEl.alternatives.style.display = showing ? "none" : "block";
+  wizardEl.btnToggleAlt.textContent = showing ? "Show alternatives" : "Hide alternatives";
+});
+
+if (wizardEl.btnInstall) wizardEl.btnInstall.addEventListener("click", () => {
+  if (wizardSelectedModelId) startWizardInstall(wizardSelectedModelId);
+});
+
+if (wizardEl.btnCancel) wizardEl.btnCancel.addEventListener("click", async () => {
+  try { await fetch("/api/setup/cancel", { method: "POST" }); } catch {}
+});
+
+async function startWizardInstall(modelId) {
+  wizardSelectedModelId = modelId;
+  wizardEl.errorBox.style.display = "none";
+  wizardEl.recommended.style.display = "none";
+  wizardEl.alternatives.style.display = "none";
+  wizardEl.progress.style.display = "block";
+  const entry = wizardCandidates.find((c) => c.id === modelId);
+  wizardEl.progressLabel.textContent = "Downloading " + (entry ? entry.displayName : modelId) + "...";
+  wizardEl.progressBytes.textContent = "0 / " + (entry ? fmtGb(entry.downloadSizeBytes) : "0 GB");
+  wizardEl.progressFill.style.width = "0%";
+  ensureWizardSse();
+  try {
+    const res = await fetch("/api/setup/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modelId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "request failed" }));
+      throw new Error(err.error || "install failed");
+    }
+  } catch (e) {
+    wizardEl.errorBox.style.display = "block";
+    wizardEl.errorBox.textContent = "Install failed: " + e.message;
+    wizardEl.progress.style.display = "none";
+    wizardEl.recommended.style.display = "block";
+  }
+}
+
+function handleWizardSseEvent(ev) {
+  if (ev.type === "model_install_progress") {
+    const pct = ev.totalBytes > 0 ? (ev.completedBytes / ev.totalBytes) * 100 : 0;
+    wizardEl.progressFill.style.width = pct.toFixed(0) + "%";
+    wizardEl.progressBytes.textContent = fmtBytes(ev.completedBytes) + " / " + fmtBytes(ev.totalBytes);
+  } else if (ev.type === "model_install_status") {
+    wizardEl.progressLabel.textContent = ev.status;
+  } else if (ev.type === "model_install_complete") {
+    wizardEl.progress.style.display = "none";
+    closeWizardSse();
+    // Switch to the main scan-config screen.
+    showScreen('setup');
+    if (typeof fetchHealth === "function") fetchHealth();
+    if (typeof initTree === "function") initTree('/documents');
+  } else if (ev.type === "model_install_error") {
+    wizardEl.errorBox.style.display = "block";
+    wizardEl.errorBox.textContent = "Install error: " + ev.message;
+    wizardEl.progress.style.display = "none";
+    wizardEl.recommended.style.display = "block";
+  }
+}
+
+function ensureWizardSse() {
+  if (wizardSse) return;
+  try {
+    wizardSse = new EventSource('/api/status');
+    wizardSse.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        if (data.type && typeof data.type === 'string' && data.type.indexOf('model_install_') === 0) {
+          handleWizardSseEvent(data);
+        }
+      } catch {}
+    };
+    wizardSse.onerror = () => { /* allow native reconnect */ };
+  } catch (e) {
+    // EventSource unavailable — install progress UI will be silent but state polls keep working.
+  }
+}
+
+function closeWizardSse() {
+  if (wizardSse) {
+    try { wizardSse.close(); } catch {}
+    wizardSse = null;
+  }
+}
+
+async function bootstrapSetup() {
+  try {
+    const res = await fetch("/api/setup/status");
+    const data = await res.json();
+    if (data.state === "needsSetup") {
+      showWizard();
+      return false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
 }
 
 async function fetchHealth() {
@@ -981,9 +1220,14 @@ document.getElementById('btn-retry').addEventListener('click', () => {
   fetchHealth(); showScreen('setup');
 });
 
-fetchHealth();
-setInterval(fetchHealth, 10000);
-initTree('/documents');
+(async () => {
+  const ready = await bootstrapSetup();
+  if (ready) {
+    fetchHealth();
+    initTree('/documents');
+  }
+  setInterval(fetchHealth, 10000); // health polling continues either way
+})();
 </script>
 </body>
 </html>
