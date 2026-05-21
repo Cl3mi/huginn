@@ -121,6 +121,10 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
 .qb-track{height:4px;background:var(--bg-elevated);border-radius:2px;overflow:hidden;}
 .qb-fill{height:100%;background:var(--success);border-radius:2px;}
 .qb-val{font-family:var(--font-mono);color:var(--text-secondary);}
+.dl-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:1rem;}
+.dl-all-btn{display:inline-flex;align-items:center;gap:.375rem;font-family:var(--font-heading);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;padding:.4rem .75rem;}
+.dl-all-btn:disabled{opacity:.4;cursor:not-allowed;}
+.dl-all-btn:not(:disabled):hover{border-color:var(--accent);color:var(--accent);}
 .dl-list{display:flex;flex-direction:column;gap:.5rem;}
 .dl-row{display:flex;align-items:center;gap:.75rem;padding:.75rem 1rem;background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);text-decoration:none;color:var(--text-primary);cursor:pointer;transition:border-color .15s,background .15s;}
 .dl-row:hover{border-color:var(--accent);background:var(--accent-dim);}
@@ -310,7 +314,10 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
           <div id="complete-warnings" style="margin-top:.75rem;"></div>
         </div>
         <div class="card">
-          <div class="card-title">Download Reports</div>
+          <div class="dl-header">
+            <div class="card-title" style="margin-bottom:0;">Download Reports</div>
+            <button class="btn-secondary dl-all-btn" id="btn-download-all" disabled>↓ Download All</button>
+          </div>
           <div class="dl-list" id="dl-list"></div>
         </div>
       </div>
@@ -372,6 +379,7 @@ const state = {
   completedPhaseCount: 0,
   reportFiles: [],
   reportData: null,
+  downloadableFiles: [],
   errorPhase: null,
   errorMessage: null,
   elapsedInterval: null,
@@ -881,12 +889,17 @@ function renderCompleteScreen(scanId) {
     'Duration': duration,
   });
 
+  const dlAllBtn = document.getElementById('btn-download-all');
+  dlAllBtn.disabled = true;
+  state.downloadableFiles = [];
   fetch('/api/reports')
     .then(r => r.json())
     .then(data => {
       const files = (data.files || []).filter(f =>
         f.name.endsWith('.json') || f.name.endsWith('.md') || f.name.endsWith('.html')
       ).slice(0, 3);
+      state.downloadableFiles = files.map(f => f.name);
+      dlAllBtn.disabled = files.length === 0;
       document.getElementById('dl-list').innerHTML = files.map(f => {
         const ext = f.name.split('.').pop();
         const icons = {json: '{ }', md: '📄', html: '📊'};
@@ -904,6 +917,7 @@ function renderCompleteScreen(scanId) {
         </a>`;
       }).join('');
     }).catch(() => {
+      dlAllBtn.disabled = true;
       document.getElementById('dl-list').innerHTML = '<div style="color:var(--text-muted);font-size:.875rem;">Could not list reports.</div>';
     });
 
@@ -911,6 +925,35 @@ function renderCompleteScreen(scanId) {
   document.getElementById('topbar-label').textContent = 'Scan complete';
   document.getElementById('topbar-label').style.color = 'var(--text-muted)';
 }
+
+document.getElementById('btn-download-all').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-download-all');
+  if (btn.disabled) return;
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = '↓ Bundling…';
+  try {
+    const res = await fetch('/api/reports-zip');
+    if (!res.ok) throw new Error('zip ' + res.status);
+    const disposition = res.headers.get('content-disposition') || '';
+    const match = disposition.match(/filename="([^"]+)"/);
+    const filename = match ? match[1] : 'reports.zip';
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    btn.textContent = '✓ Downloaded';
+  } catch (e) {
+    btn.textContent = '✗ Failed';
+  }
+  setTimeout(() => { btn.textContent = originalLabel; btn.disabled = false; }, 1500);
+});
 
 document.getElementById('btn-new-scan').addEventListener('click', () => {
   state.reportData = null; state.scanId = null; state.startedAt = null;

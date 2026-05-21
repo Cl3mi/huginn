@@ -1,5 +1,5 @@
 import { join, resolve } from "path";
-import { readdirSync, statSync } from "fs";
+import { readdirSync, readFileSync, statSync } from "fs";
 import { randomUUID } from "crypto";
 import { CONFIG } from "../config.ts";
 import { broadcaster } from "./sse.ts";
@@ -8,6 +8,7 @@ import { browseFolder, FolderBrowseError } from "./folder-browser.ts";
 import { healthState } from "./health-state.ts";
 import { runPipeline } from "../pipeline.ts";
 import type { ScanSettings } from "../pipeline.ts";
+import { buildZip } from "./zip.ts";
 
 type ScanState =
   | { status: "idle" }
@@ -167,6 +168,49 @@ function handleReportDownload(filename: string): Response {
   });
 }
 
+function handleReportsZip(): Response {
+  try {
+    const safeReportDir = resolve(CONFIG.reportOutput);
+    const names = readdirSync(CONFIG.reportOutput)
+      .filter(f => /\.(json|md|html)$/.test(f))
+      .sort()
+      .reverse();
+
+    const groups: Record<string, string> = {};
+    for (const name of names) {
+      const ext = name.split(".").pop()!;
+      if (!groups[ext]) groups[ext] = name;
+    }
+    const selected = Object.values(groups);
+    if (selected.length === 0) return json({ error: "No reports found" }, 404);
+
+    const entries = selected.map(name => {
+      const filePath = join(CONFIG.reportOutput, name);
+      if (!resolve(filePath).startsWith(safeReportDir + "/")) {
+        throw new Error("Forbidden path");
+      }
+      const data = readFileSync(filePath);
+      const mtime = statSync(filePath).mtime;
+      return { name, data: new Uint8Array(data.buffer, data.byteOffset, data.byteLength), mtime };
+    });
+
+    const zipBytes = buildZip(entries);
+    const stem = entries[0]!.name.replace(/\.[^.]+$/, "");
+    const archiveName = `${stem}.zip`;
+
+    return new Response(zipBytes, {
+      headers: {
+        "Content-Type": "application/zip",
+        "Content-Disposition": `attachment; filename="${archiveName}"`,
+        "Content-Length": String(zipBytes.length),
+        ...CORS,
+      },
+    });
+  } catch {
+    return json({ error: "Could not build archive" }, 500);
+  }
+}
+
 function handleListReports(): Response {
   try {
     const files = readdirSync(CONFIG.reportOutput)
@@ -195,6 +239,7 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (path === "/api/scan" && req.method === "POST") return handleStartScan(req);
   if (path === "/api/status" && req.method === "GET") return handleStatus();
   if (path === "/api/reports" && req.method === "GET") return handleListReports();
+  if (path === "/api/reports-zip" && req.method === "GET") return handleReportsZip();
 
   const reportMatch = path.match(/^\/api\/reports\/(.+)$/);
   if (reportMatch && req.method === "GET") return handleReportDownload(reportMatch[1]!);
