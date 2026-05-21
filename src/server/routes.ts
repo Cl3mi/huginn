@@ -71,6 +71,9 @@ async function handleStartScan(req: Request): Promise<Response> {
   if (scanState.status === "running") {
     return json({ error: "scan_already_running", scanId: (scanState as { status: "running"; scanId: string }).scanId }, 409);
   }
+  if (!setupHolder.current || setupHolder.current.installedChatModel === null) {
+    return json({ error: "setup_required" }, 409);
+  }
 
   let body: { folder?: string; settings?: Partial<ScanSettings> };
   try {
