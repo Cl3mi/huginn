@@ -1,7 +1,17 @@
 services:
   tika:
-    image: apache/tika:latest
+    # Pinned to a specific Tika 3.x release. The :latest tag started returning
+    # builds that fail with "Could not determine local host name" because the
+    # JVM cannot resolve the container's own hostname during startup. We pin to
+    # a known-good release and add extra_hosts so the hostname always resolves.
+    image: apache/tika:3.0.0.0
     hostname: tika
+    extra_hosts:
+      - "tika:127.0.0.1"
+    environment:
+      # Force IPv4 in the JVM. Several apache/tika builds fail localhost
+      # resolution via IPv6 inside Docker, which surfaces as the same error.
+      - JAVA_OPTS=-Djava.net.preferIPv4Stack=true
     ports:
       - "9998:9998"
     restart: unless-stopped
