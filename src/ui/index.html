@@ -285,6 +285,11 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
               <div class="field-hint">Manage in <a href="#" id="link-open-modelsettings" style="color:var(--accent);text-decoration:none;">Model Settings</a></div>
             </div>
             <div class="field">
+              <label>Embed model</label>
+              <div class="field-hint" id="active-embed-model-display" style="font-family:var(--font-mono);color:var(--text-primary);padding:.4rem 0;">nomic-embed-text</div>
+              <div class="field-hint">Fixed; swapping would invalidate prior scan comparisons.</div>
+            </div>
+            <div class="field">
               <label>LLM sample rate</label>
               <select class="select-field" id="sample-rate">
                 <option value="0.05">5% (fast)</option>
