@@ -4,7 +4,12 @@ export type SseEvent =
   | { type: "log"; level: "INFO" | "WARN" | "ERROR"; phase: string; message: string }
   | { type: "stats"; filesFound?: number; parsed?: number; pairsScored?: number; versionPairs?: number; references?: number; requirements?: number }
   | { type: "scan_complete"; scanId: string; reports: string[] }
-  | { type: "scan_error"; phase: string; message: string };
+  | { type: "scan_error"; phase: string; message: string }
+  | { type: "model_install_started"; modelId: string }
+  | { type: "model_install_progress"; modelId: string; completedBytes: number; totalBytes: number }
+  | { type: "model_install_status"; modelId: string; status: string }
+  | { type: "model_install_complete"; modelId: string }
+  | { type: "model_install_error"; modelId: string; message: string };
 
 export function encodeSseEvent(event: SseEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
