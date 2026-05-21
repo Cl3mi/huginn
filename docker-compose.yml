@@ -22,17 +22,24 @@ services:
   ollama:
     image: ollama/ollama:latest
     hostname: ollama
+    environment:
+      # Explicitly bind to all interfaces so other containers can reach :11434.
+      # Some recent ollama/ollama:latest builds defaulted to 127.0.0.1.
+      - OLLAMA_HOST=0.0.0.0:11434
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 10s
+      # Use the HTTP endpoint directly (ollama's binary ships with bash). This
+      # verifies the externally-reachable surface, not just the in-process state,
+      # which closes the race where 'ollama list' passes before :11434 is bound.
+      test: ["CMD-SHELL", "ollama list >/dev/null 2>&1 && bash -c '</dev/tcp/127.0.0.1/11434' 2>/dev/null"]
+      interval: 5s
       timeout: 5s
-      retries: 6
-      start_period: 15s
+      retries: 12
+      start_period: 30s
 
   # Chat models are no longer pre-pulled — the in-UI setup wizard handles
   # model selection and download on first visit (see src/server/setup-state.ts).

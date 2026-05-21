@@ -34,6 +34,27 @@ async function initSetup(): Promise<void> {
   logger.info("setup required: no chat model installed");
 }
 
+// Retry the Ollama health check while the container is still warming up.
+// Without `ollama-init` in front of us, the scanner now starts ~15-30s after
+// Ollama and can race the HTTP bind.
+async function waitForOllama(): Promise<{ ok: boolean; modelsAvailable: string[] }> {
+  const maxAttempts = 12;
+  const intervalMs = 2500;
+  let last: { ok: boolean; modelsAvailable: string[] } = { ok: false, modelsAvailable: [] };
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    last = await checkOllamaHealth();
+    if (last.ok) {
+      if (attempt > 1) logger.info("Ollama reachable", { attempt });
+      return last;
+    }
+    if (attempt < maxAttempts) {
+      logger.info("Ollama not yet reachable, retrying", { attempt, maxAttempts });
+      await new Promise((r) => setTimeout(r, intervalMs));
+    }
+  }
+  return last;
+}
+
 async function start() {
   const regexResult = runRegexTests();
   if (!regexResult.passed) {
@@ -41,17 +62,15 @@ async function start() {
     process.exit(1);
   }
 
-  const [tikaOk, { ok: ollamaOk, modelsAvailable }] = await Promise.all([
-    checkTikaHealth(),
-    checkOllamaHealth(),
-  ]);
+  const tikaOk = await checkTikaHealth();
+  const { ok: ollamaOk, modelsAvailable } = await waitForOllama();
   healthState.tikaOk = tikaOk;
   healthState.ollamaOk = ollamaOk;
   healthState.modelsAvailable = modelsAvailable;
 
   if (!tikaOk) logger.warn("Tika unreachable — PDF parsing will be skipped");
   if (!ollamaOk) {
-    logger.error("Ollama unreachable — aborting (hard gate)");
+    logger.error("Ollama unreachable after retries — aborting (hard gate)");
     process.exit(1);
   }
 
