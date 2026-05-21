@@ -76,9 +76,11 @@ export async function autoRecoverIfPossible(
 }
 
 export function applySetupState(next: SetupState): void {
-  setupHolder.current = next;
+  // Persist to disk first; if it throws (EACCES/ENOSPC/EROFS) leave in-memory
+  // state untouched so we don't split-brain after a long install.
   saveSetupState(SETUP_FILE_PATH, next);
-  if (next.installedChatModel) {
+  setupHolder.current = next;
+  if (next.installedChatModel !== null) {
     process.env["OLLAMA_CHAT_MODEL"] = next.installedChatModel;
   }
   healthState.setupReady = next.installedChatModel !== null;
