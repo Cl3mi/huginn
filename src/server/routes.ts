@@ -9,6 +9,21 @@ import { healthState } from "./health-state.ts";
 import { runPipeline } from "../pipeline.ts";
 import type { ScanSettings } from "../pipeline.ts";
 import { buildZip } from "./zip.ts";
+import { CATALOG } from "../llm/model-catalog.ts";
+import { probeHardware, rankCatalog } from "../llm/model-fit.ts";
+import { pullModel, type PullController } from "../llm/model-installer.ts";
+import { setupHolder, applySetupState } from "./setup-state.ts";
+
+type ActivePull = {
+  modelId: string;
+  controller: PullController;
+  totalBytes: number;
+  completedBytes: number;
+  lastEvent: "started" | "progress" | "complete" | "error";
+  lastError?: string;
+};
+
+let activePull: ActivePull | null = null;
 
 type ScanState =
   | { status: "idle" }
@@ -229,6 +244,111 @@ function handleListReports(): Response {
   }
 }
 
+function handleSetupStatus(): Response {
+  const current = setupHolder.current;
+  const ready = current !== null && current.installedChatModel !== null;
+  return json({
+    state: ready ? "ready" : "needsSetup",
+    installedChatModel: ready ? current!.installedChatModel : null,
+    activePull: activePull
+      ? {
+          modelId: activePull.modelId,
+          completedBytes: activePull.completedBytes,
+          totalBytes: activePull.totalBytes,
+          status: activePull.lastEvent,
+        }
+      : null,
+  });
+}
+
+function handleSetupRecommendation(): Response {
+  const detected = probeHardware();
+  const candidates = rankCatalog(CATALOG, detected);
+  return json({
+    detected,
+    candidates,
+  });
+}
+
+async function handleSetupInstall(req: Request): Promise<Response> {
+  let body: { modelId?: string };
+  try {
+    body = (await req.json()) as { modelId?: string };
+  } catch {
+    return json({ error: "Invalid JSON body" }, 400);
+  }
+  const modelId = body.modelId;
+  if (!modelId || typeof modelId !== "string") {
+    return json({ error: "modelId is required" }, 400);
+  }
+  if (!CATALOG.some((e) => e.id === modelId)) {
+    return json({ error: "unknown model" }, 400);
+  }
+  if (activePull && activePull.lastEvent !== "complete" && activePull.lastEvent !== "error") {
+    if (activePull.modelId === modelId) {
+      return json({ status: "already_running", modelId }, 200);
+    }
+    return json({ error: "another pull in progress", modelId: activePull.modelId }, 409);
+  }
+
+  const tracker: ActivePull = {
+    modelId,
+    controller: { abort: () => {} },
+    totalBytes: 0,
+    completedBytes: 0,
+    lastEvent: "started",
+  };
+  activePull = tracker;
+  broadcaster.emit({ type: "model_install_started", modelId });
+
+  const ctl = await pullModel(modelId, (ev) => {
+    if (ev.type === "status") {
+      broadcaster.emit({ type: "model_install_status", modelId, status: ev.status });
+    } else if (ev.type === "progress") {
+      tracker.completedBytes = ev.completedBytes;
+      tracker.totalBytes = ev.totalBytes;
+      tracker.lastEvent = "progress";
+      broadcaster.emit({
+        type: "model_install_progress",
+        modelId,
+        completedBytes: ev.completedBytes,
+        totalBytes: ev.totalBytes,
+      });
+    } else if (ev.type === "complete") {
+      tracker.lastEvent = "complete";
+      try {
+        applySetupState({
+          schemaVersion: 1,
+          installedChatModel: modelId,
+          installedAt: new Date().toISOString(),
+          fitReportAtInstall: null,
+        });
+      } catch (e) {
+        tracker.lastEvent = "error";
+        tracker.lastError = String(e).slice(0, 120);
+        broadcaster.emit({ type: "model_install_error", modelId, message: tracker.lastError });
+        return;
+      }
+      broadcaster.emit({ type: "model_install_complete", modelId });
+    } else if (ev.type === "error") {
+      tracker.lastEvent = "error";
+      tracker.lastError = ev.message;
+      broadcaster.emit({ type: "model_install_error", modelId, message: ev.message });
+    }
+  });
+  tracker.controller = ctl;
+
+  return json({ status: "started", modelId }, 202);
+}
+
+function handleSetupCancel(): Response {
+  if (!activePull || activePull.lastEvent === "complete" || activePull.lastEvent === "error") {
+    return json({ status: "no_active_pull" }, 200);
+  }
+  activePull.controller.abort();
+  return json({ status: "cancelled", modelId: activePull.modelId }, 200);
+}
+
 export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -240,6 +360,10 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (path === "/api/status" && req.method === "GET") return handleStatus();
   if (path === "/api/reports" && req.method === "GET") return handleListReports();
   if (path === "/api/reports-zip" && req.method === "GET") return handleReportsZip();
+  if (path === "/api/setup/status" && req.method === "GET") return handleSetupStatus();
+  if (path === "/api/setup/recommendation" && req.method === "GET") return handleSetupRecommendation();
+  if (path === "/api/setup/install" && req.method === "POST") return handleSetupInstall(req);
+  if (path === "/api/setup/cancel" && req.method === "POST") return handleSetupCancel();
 
   const reportMatch = path.match(/^\/api\/reports\/(.+)$/);
   if (reportMatch && req.method === "GET") return handleReportDownload(reportMatch[1]!);
