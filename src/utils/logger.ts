@@ -7,6 +7,13 @@ export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 let currentPhase = "startup";
 let logFilePath: string | null = null;
 
+type ProgressCb = (event: Record<string, unknown>) => void;
+let _progressCb: ProgressCb | null = null;
+
+export function setProgressCallback(cb: ProgressCb | null): void {
+  _progressCb = cb;
+}
+
 export function setPhase(phase: string): void {
   currentPhase = phase;
 }
@@ -41,6 +48,10 @@ function log(level: LogLevel, message: string, data?: unknown): void {
     appendFileSync(getLogFilePath(), line + "\n");
   } catch (e) {
     process.stderr.write(`[logger] log file write failed: ${String(e)}\n`);
+  }
+
+  if ((level === "WARN" || level === "ERROR") && _progressCb) {
+    _progressCb({ type: "log", level, phase: currentPhase, message: sanitizeMessage(message) });
   }
 }
 

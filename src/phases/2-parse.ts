@@ -8,8 +8,11 @@ import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
 import { parseWithTika } from "../parsers/tika.ts";
 import { parseWithOfficeParser } from "../parsers/officeparser.ts";
 import { compareParserResults } from "../parsers/parser-compare.ts";
+import { ProjectionAccumulator, projectDocument } from "./9-projection.ts";
 
 const execFileAsync = promisify(execFile);
+
+export let _lastAccumulator: ProjectionAccumulator | null = null;
 
 // franc uses ESM-only exports — dynamic import required
 type FrancFn = (text: string, options?: { minLength?: number }) => string;
@@ -424,6 +427,8 @@ export async function runParse(state: ScannerState): Promise<void> {
   const t = logger.phaseStart("2-parse");
   let tikaUnavailable = false;
 
+  const projectionAcc = new ProjectionAccumulator();
+
   for (const file of state.files) {
     let parsed: ParsedDocument;
 
@@ -453,7 +458,12 @@ export async function runParse(state: ScannerState): Promise<void> {
     }
 
     state.parsed.push(parsed);
+    const projection = await projectDocument(parsed, projectionAcc);
+    state.ingestionProjections.push(projection);
   }
+
+  _lastAccumulator = projectionAcc;
+  logger.info("Phase 9a complete", { projectedDocs: state.ingestionProjections.length });
 
   const scannedCount = state.parsed.filter((d) => d.pdfClassification === "fully_scanned").length;
   const hybridCount = state.parsed.filter((d) => d.pdfClassification === "hybrid").length;

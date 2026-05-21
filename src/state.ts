@@ -175,6 +175,105 @@ export interface ConsistencyCheck {
   interpretation: string;
 }
 
+// ── Phase 9: Ingestion Projection ────────────────────────────────────────────
+
+export interface DocumentIngestionProjection {
+  docId: string;
+  tokenWaterfall: {
+    raw: number;
+    afterNormalization: number;
+    afterCleaning: number;
+    afterChunking: number;
+    afterFilter: number;
+    embeddable: number;
+  };
+  cleaningLoss: {
+    normalization: number;
+    boilerplate: number;
+    repeatedLines: number;
+  };
+  filterLoss: {
+    byLength: number;
+    byLetterRatio: number;
+    byPunctuation: number;
+  };
+  predictedChunkCount: number;
+  predictedFilteredChunkCount: number;
+  blockTypeDistribution: {
+    prose: number;
+    header: number;
+    specValue: number;
+    tableRow: number;
+    boilerplate: number;
+  };
+  predictedQualityDistribution: {
+    high: number;
+    medium: number;
+    low: number;
+  };
+  tokenRetentionRate: number;
+}
+
+export interface CorpusIngestionSummary {
+  totalTokensRaw: number;
+  totalTokensEmbeddable: number;
+  overallRetentionRate: number;
+  lossWaterfall: Array<{ stage: string; tokensLost: number; percentOfRaw: number }>;
+  byDocType: Record<string, {
+    docCount: number;
+    retentionRate: number;
+    avgQualityHigh: number;
+    dominantChunkStrategy: string;
+    avgPredictedChunkCount: number;
+  }>;
+  highRiskDocs: Array<{
+    docId: string;
+    retentionRate: number;
+    primaryLossCause: "ocr" | "boilerplate" | "filter" | "normalization";
+  }>;
+}
+
+export interface DiscoveredBoilerplatePattern {
+  normalizedForm: string;
+  occurrenceCount: number;
+  documentCount: number;
+  suggestedRegex: string;
+  alreadyCovered: boolean;
+  tokensAtRisk: number;
+}
+
+export interface CorpusBoilerplateSummary {
+  totalCandidatePatterns: number;
+  newPatterns: number;
+  suppressedPatterns: number;
+  totalTokensRecoverable: number;
+}
+
+export interface MuninnConfigRecommendation {
+  parameter: string;
+  currentDefault: string | number;
+  recommendedValue: string | number;
+  confidence: "HIGH" | "MEDIUM" | "LOW";
+  reasoning: string;
+  evidenceDocCount: number;
+  affectedTokenShare: number;
+}
+
+export interface DomainProfile {
+  detectedLanguage: "de" | "en" | "fr" | "mixed";
+  requirementLanguageFamily: "german_modal" | "rfc2119" | "legal" | "french_modal" | "none";
+  requirementLanguageCoverage: number;
+  discoveredReferenceFormats: Array<{
+    pattern: string;
+    occurrenceCount: number;
+    documentCount: number;
+    alreadyExtracted: boolean;
+  }>;
+  dominantUnitFamily: "mechanical" | "electrical" | "pharma" | "financial" | "logistics" | "mixed" | "none";
+  unitFamilyCoverage: number;
+  qualityScorerProfile: "automotive_de" | "generic_de" | "generic_en" | "adapted";
+}
+
 export interface ScannerState {
   scanId: string;
   startedAt: Date;
@@ -197,6 +296,12 @@ export interface ScannerState {
     llmRejectedCount?: number;   // requirements rejected by LLM but found by regex
   };
   consistencyChecks: ConsistencyCheck[];
+  // Phase 9: Ingestion Projection
+  ingestionProjections: DocumentIngestionProjection[];
+  corpusIngestionSummary: CorpusIngestionSummary;
+  discoveredBoilerplatePatterns: DiscoveredBoilerplatePattern[];
+  muninnConfigRecommendations: MuninnConfigRecommendation[];
+  domainProfile: DomainProfile;
   folderStructureInference: {
     likelyPattern: string;       // e.g. "project/doc-category/docs" or "customer/project/offer-version/docs"
     confidence: number;
@@ -225,6 +330,26 @@ export function createInitialState(scanId: string, documentsRoot: string): Scann
       confidenceInterval: { lower: 0, upper: 0 },
     },
     consistencyChecks: [],
+    ingestionProjections: [],
+    corpusIngestionSummary: {
+      totalTokensRaw: 0,
+      totalTokensEmbeddable: 0,
+      overallRetentionRate: 0,
+      lossWaterfall: [],
+      byDocType: {},
+      highRiskDocs: [],
+    },
+    discoveredBoilerplatePatterns: [],
+    muninnConfigRecommendations: [],
+    domainProfile: {
+      detectedLanguage: "de",
+      requirementLanguageFamily: "none",
+      requirementLanguageCoverage: 0,
+      discoveredReferenceFormats: [],
+      dominantUnitFamily: "none",
+      unitFamilyCoverage: 0,
+      qualityScorerProfile: "automotive_de",
+    },
     folderStructureInference: {
       likelyPattern: "unknown",
       confidence: 0,
