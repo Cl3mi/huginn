@@ -280,18 +280,9 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
           <div class="card-title">Scan Settings</div>
           <div class="settings-list">
             <div class="field">
-              <label>Embed model</label>
-              <select class="select-field" id="embed-model">
-                <option value="nomic-embed-text">nomic-embed-text</option>
-                <option value="bge-m3">bge-m3</option>
-              </select>
-            </div>
-            <div class="field">
               <label>Chat model</label>
-              <select class="select-field" id="chat-model">
-                <option value="llama3.1:8b">llama3.1:8b</option>
-                <option value="mistral:7b">mistral:7b</option>
-              </select>
+              <div class="field-hint" id="active-chat-model-display" style="font-family:var(--font-mono);color:var(--text-primary);padding:.4rem 0;">—</div>
+              <div class="field-hint">Manage in <a href="#" id="link-open-modelsettings" style="color:var(--accent);text-decoration:none;">Model Settings</a></div>
             </div>
             <div class="field">
               <label>LLM sample rate</label>
@@ -656,6 +647,7 @@ function handleWizardSseEvent(ev) {
     wizardEl.progressLabel.textContent = ev.status;
   } else if (ev.type === "model_install_complete") {
     closeWizardSse();
+    setActiveChatModel(ev.modelId);
     wizardCandidates = [];
     wizardRecommended = null;
     wizardSelectedModelId = null;
@@ -698,6 +690,17 @@ function closeWizardSse() {
   }
 }
 
+// Tracks the chat model currently active on the server (set by setup state).
+// Read for display in the scan-config card and the scan-info grid.
+let activeChatModel = null;
+const ACTIVE_EMBED_MODEL = "nomic-embed-text"; // fixed by design (see Task 4 spec)
+
+function setActiveChatModel(modelId) {
+  activeChatModel = modelId;
+  const el = document.getElementById('active-chat-model-display');
+  if (el) el.textContent = modelId || "(none installed)";
+}
+
 async function bootstrapSetup() {
   try {
     const res = await fetch("/api/setup/status");
@@ -706,6 +709,7 @@ async function bootstrapSetup() {
       showWizard();
       return false;
     }
+    setActiveChatModel(data.installedChatModel);
     return true;
   } catch {
     return true;
@@ -887,6 +891,7 @@ function handleModelSettingsSseEvent(ev) {
     modelsettingsEl.progressLabel.textContent = ev.status;
   } else if (ev.type === "model_install_complete") {
     modelsettingsEl.progress.style.display = "none";
+    setActiveChatModel(ev.modelId);
     refreshModelSettings();
   } else if (ev.type === "model_install_error") {
     modelsettingsEl.errorBox.style.display = "block";
@@ -897,6 +902,11 @@ function handleModelSettingsSseEvent(ev) {
 
 if (modelsettingsEl.btnOpen) modelsettingsEl.btnOpen.addEventListener("click", openModelSettings);
 if (modelsettingsEl.btnClose) modelsettingsEl.btnClose.addEventListener("click", closeModelSettings);
+const linkOpenSettings = document.getElementById("link-open-modelsettings");
+if (linkOpenSettings) linkOpenSettings.addEventListener("click", (e) => {
+  e.preventDefault();
+  openModelSettings();
+});
 
 async function fetchHealth() {
   try {
@@ -1133,9 +1143,9 @@ function updateFileCount() {
 
 document.getElementById('btn-start').addEventListener('click', async () => {
   const folder = state.selectedFolder;
+  // chatModel and embedModel are intentionally omitted — the server reads the
+  // active model from setup state (see src/server/setup-state.ts).
   const settings = {
-    embedModel: document.getElementById('embed-model').value,
-    chatModel: document.getElementById('chat-model').value,
     llmSampleRate: parseFloat(document.getElementById('sample-rate').value),
     sectionEmbeddings: document.getElementById('section-embeddings').value === 'true',
   };
@@ -1174,8 +1184,8 @@ function initProgressScreen(folder, scanId, settings) {
   document.getElementById('scan-info-grid').innerHTML = infoGrid({
     'Folder': folder,
     'Scan ID': scanId,
-    'Embed model': settings.embedModel,
-    'Chat model': settings.chatModel,
+    'Embed model': ACTIVE_EMBED_MODEL,
+    'Chat model': activeChatModel || '(default)',
   });
   startElapsed();
 }
