@@ -11,13 +11,16 @@ cd huginn
 # Place your documents in a directory, e.g.:
 cp /path/to/your/documents/* _test-docs/
 
-# Run (GPU required)
+# Run (CPU-only — works on any host)
+DOCUMENTS_PATH=./_test-docs docker compose up
+
+# Or run with NVIDIA GPU (recommended for any model larger than 3B)
 DOCUMENTS_PATH=./_test-docs docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
 ```
 
-Reports are written to `./reports/` as JSON, Markdown, and a narrative summary.
+Open `http://localhost:3000` in a browser. On first boot, the setup wizard detects your hardware (GPU/VRAM via `nvidia-smi` when the GPU override is applied), recommends a chat model from a curated catalog of 13 options spanning CPU-viable through 140 GB VRAM, and downloads it on demand. You can swap models later from the Model Settings page.
 
-On first run, Ollama will download the required models (~6 GB). Subsequent runs are instant.
+Reports are written to `./reports/` as JSON, Markdown, and a narrative summary.
 
 ## How it works
 
