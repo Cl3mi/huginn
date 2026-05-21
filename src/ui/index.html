@@ -204,7 +204,7 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
   </div>
 </div>
 
-<div class="screen active" id="screen-setup">
+<div class="screen" id="screen-setup">
   <div class="page">
     <div class="page-header">
       <div class="page-title">New Scan</div>
@@ -519,21 +519,49 @@ function renderWizardAlternatives() {
   for (const c of others) {
     const row = document.createElement("div");
     row.style.cssText = "padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;";
-    const fitBadge = c.fits ? "" : ' <span style="color:var(--warning);font-size:.7rem;">needs more VRAM</span>';
-    const validatedBadge = c.huginnValidated ? "" : ' <span style="color:var(--text-muted);font-size:.7rem;">untested</span>';
-    row.innerHTML =
-      '<div style="flex:1;">' +
-        '<div style="font-weight:500;">' + c.displayName + fitBadge + validatedBadge + '</div>' +
-        '<div class="field-hint">' + fmtGb(c.downloadSizeBytes) + ' · ' + (c.minVramGb === 0 ? "CPU-viable" : c.minVramGb + " GB VRAM min") + '</div>' +
-      '</div>' +
-      '<button class="btn-secondary" data-model-id="' + c.id + '"' + (c.fits ? "" : " disabled") + '>Install</button>';
-    const btn = row.querySelector("button");
-    if (btn && c.fits) {
+
+    const left = document.createElement("div");
+    left.style.flex = "1";
+
+    const nameLine = document.createElement("div");
+    nameLine.style.fontWeight = "500";
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = c.displayName;
+    nameLine.appendChild(nameSpan);
+    if (!c.fits) {
+      const fitBadge = document.createElement("span");
+      fitBadge.style.cssText = "color:var(--warning);font-size:.7rem;margin-left:.4rem;";
+      fitBadge.textContent = "needs more VRAM";
+      nameLine.appendChild(fitBadge);
+    }
+    if (!c.huginnValidated) {
+      const validatedBadge = document.createElement("span");
+      validatedBadge.style.cssText = "color:var(--text-muted);font-size:.7rem;margin-left:.4rem;";
+      validatedBadge.textContent = "untested";
+      nameLine.appendChild(validatedBadge);
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "field-hint";
+    meta.textContent = fmtGb(c.downloadSizeBytes) + " · " + (c.minVramGb === 0 ? "CPU-viable" : c.minVramGb + " GB VRAM min");
+
+    left.appendChild(nameLine);
+    left.appendChild(meta);
+
+    const btn = document.createElement("button");
+    btn.className = "btn-secondary";
+    btn.textContent = "Install";
+    btn.setAttribute("data-model-id", c.id);
+    if (!c.fits) btn.disabled = true;
+    if (c.fits) {
       btn.addEventListener("click", (e) => {
         const id = e.currentTarget.getAttribute("data-model-id");
         startWizardInstall(id);
       });
     }
+
+    row.appendChild(left);
+    row.appendChild(btn);
     wizardEl.alternatives.appendChild(row);
   }
 }
@@ -589,13 +617,16 @@ function handleWizardSseEvent(ev) {
   } else if (ev.type === "model_install_status") {
     wizardEl.progressLabel.textContent = ev.status;
   } else if (ev.type === "model_install_complete") {
-    wizardEl.progress.style.display = "none";
     closeWizardSse();
+    wizardCandidates = [];
+    wizardRecommended = null;
+    wizardSelectedModelId = null;
     // Switch to the main scan-config screen.
     showScreen('setup');
     if (typeof fetchHealth === "function") fetchHealth();
     if (typeof initTree === "function") initTree('/documents');
   } else if (ev.type === "model_install_error") {
+    closeWizardSse();
     wizardEl.errorBox.style.display = "block";
     wizardEl.errorBox.textContent = "Install error: " + ev.message;
     wizardEl.progress.style.display = "none";
@@ -1223,6 +1254,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
 (async () => {
   const ready = await bootstrapSetup();
   if (ready) {
+    showScreen('setup');
     fetchHealth();
     initTree('/documents');
   }
