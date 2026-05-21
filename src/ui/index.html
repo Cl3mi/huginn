@@ -158,6 +158,7 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
   </div>
   <div class="topbar-sep"></div>
   <span class="topbar-sub">Document Intelligence Scanner</span>
+  <button class="btn-secondary" id="btn-open-modelsettings" style="display:none;font-size:.75rem;padding:.3rem .6rem;margin-left:auto;">Model Settings</button>
   <div class="topbar-status" id="topbar-status">
     <div class="dot" id="topbar-dot" style="background:var(--text-muted);"></div>
     <span id="topbar-label">Checking...</span>
@@ -200,6 +201,43 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
       </div>
 
       <div class="alert alert-error" id="wizard-error" style="display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="screen" id="screen-modelsettings">
+  <div class="page" style="max-width:780px;">
+    <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
+      <div>
+        <div class="page-title">Model Settings</div>
+        <div class="page-subtitle" id="modelsettings-subtitle">Manage the installed chat model.</div>
+      </div>
+      <button class="btn-secondary" id="btn-close-modelsettings">Back</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Currently active</div>
+      <div id="modelsettings-current" class="field-hint">—</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Detected hardware</div>
+      <div id="modelsettings-detected" class="field-hint">—</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Available models</div>
+      <div id="modelsettings-list"></div>
+
+      <div id="modelsettings-progress" style="display:none;margin-top:1rem;">
+        <div class="progress-label">
+          <span id="modelsettings-progress-label">Downloading...</span>
+          <span id="modelsettings-progress-bytes">0 / 0</span>
+        </div>
+        <div class="progress-track"><div class="progress-fill" id="modelsettings-progress-fill"></div></div>
+      </div>
+
+      <div class="alert alert-error" id="modelsettings-error" style="display:none;"></div>
     </div>
   </div>
 </div>
@@ -623,6 +661,7 @@ function handleWizardSseEvent(ev) {
     wizardSelectedModelId = null;
     // Switch to the main scan-config screen.
     showScreen('setup');
+    if (modelsettingsEl.btnOpen) modelsettingsEl.btnOpen.style.display = "";
     if (typeof fetchHealth === "function") fetchHealth();
     if (typeof initTree === "function") initTree('/documents');
   } else if (ev.type === "model_install_error") {
@@ -672,6 +711,192 @@ async function bootstrapSetup() {
     return true;
   }
 }
+
+// ---- Model Settings ----
+const modelsettingsEl = {
+  screen: document.getElementById("screen-modelsettings"),
+  subtitle: document.getElementById("modelsettings-subtitle"),
+  current: document.getElementById("modelsettings-current"),
+  detected: document.getElementById("modelsettings-detected"),
+  list: document.getElementById("modelsettings-list"),
+  progress: document.getElementById("modelsettings-progress"),
+  progressLabel: document.getElementById("modelsettings-progress-label"),
+  progressBytes: document.getElementById("modelsettings-progress-bytes"),
+  progressFill: document.getElementById("modelsettings-progress-fill"),
+  errorBox: document.getElementById("modelsettings-error"),
+  btnOpen: document.getElementById("btn-open-modelsettings"),
+  btnClose: document.getElementById("btn-close-modelsettings"),
+};
+
+let modelsettingsCurrentModel = null;
+let modelsettingsLastScreenId = null;
+let modelsettingsSse = null;
+
+function ensureModelSettingsSse() {
+  if (modelsettingsSse) return;
+  try {
+    modelsettingsSse = new EventSource('/api/status');
+    modelsettingsSse.onmessage = (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch { return; }
+      if (data && data.type && data.type.indexOf("model_install_") === 0) {
+        handleModelSettingsSseEvent(data);
+      }
+    };
+  } catch {
+    modelsettingsSse = null;
+  }
+}
+
+function closeModelSettingsSse() {
+  if (modelsettingsSse) {
+    try { modelsettingsSse.close(); } catch {}
+    modelsettingsSse = null;
+  }
+}
+
+async function openModelSettings() {
+  modelsettingsLastScreenId = null;
+  document.querySelectorAll(".screen").forEach((s) => {
+    if (s.classList.contains("active") && s.id !== "screen-modelsettings") {
+      modelsettingsLastScreenId = s.id;
+    }
+  });
+  showScreen("modelsettings");
+  modelsettingsEl.errorBox.style.display = "none";
+  modelsettingsEl.progress.style.display = "none";
+  ensureModelSettingsSse();
+  await refreshModelSettings();
+}
+
+async function refreshModelSettings() {
+  try {
+    const statusRes = await fetch("/api/setup/status").then((r) => r.json());
+    const recRes = await fetch("/api/setup/recommendation").then((r) => r.json());
+    modelsettingsCurrentModel = statusRes.installedChatModel;
+    modelsettingsEl.current.textContent = modelsettingsCurrentModel
+      ? modelsettingsCurrentModel + " (installed)"
+      : "No model installed";
+    const d = recRes.detected;
+    modelsettingsEl.detected.textContent = d.gpuAvailable
+      ? "NVIDIA GPU, " + d.vramGb + " GB VRAM"
+      : "No NVIDIA GPU detected — CPU mode";
+    renderModelSettingsList(recRes.candidates);
+  } catch (e) {
+    modelsettingsEl.errorBox.style.display = "block";
+    modelsettingsEl.errorBox.textContent = "Could not load settings: " + e.message;
+  }
+}
+
+function renderModelSettingsList(candidates) {
+  modelsettingsEl.list.innerHTML = "";
+  for (const c of candidates) {
+    const row = document.createElement("div");
+    row.style.cssText = "padding:.6rem 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:.75rem;";
+    const isActive = c.id === modelsettingsCurrentModel;
+
+    const left = document.createElement("div");
+    left.style.flex = "1";
+
+    const nameLine = document.createElement("div");
+    nameLine.style.fontWeight = "500";
+    const nameSpan = document.createElement("span");
+    nameSpan.textContent = c.displayName;
+    nameLine.appendChild(nameSpan);
+    if (isActive) {
+      const activeBadge = document.createElement("span");
+      activeBadge.style.cssText = "color:var(--success);font-size:.7rem;margin-left:.4rem;";
+      activeBadge.textContent = "active";
+      nameLine.appendChild(activeBadge);
+    }
+    if (!c.fits) {
+      const fitBadge = document.createElement("span");
+      fitBadge.style.cssText = "color:var(--warning);font-size:.7rem;margin-left:.4rem;";
+      fitBadge.textContent = "needs more VRAM";
+      nameLine.appendChild(fitBadge);
+    }
+    if (!c.huginnValidated) {
+      const validatedBadge = document.createElement("span");
+      validatedBadge.style.cssText = "color:var(--text-muted);font-size:.7rem;margin-left:.4rem;";
+      validatedBadge.textContent = "untested";
+      nameLine.appendChild(validatedBadge);
+    }
+
+    const meta = document.createElement("div");
+    meta.className = "field-hint";
+    meta.textContent = fmtGb(c.downloadSizeBytes) + " · " + (c.minVramGb === 0 ? "CPU-viable" : c.minVramGb + " GB VRAM min");
+
+    left.appendChild(nameLine);
+    left.appendChild(meta);
+
+    const btn = document.createElement("button");
+    btn.className = "btn-secondary";
+    btn.textContent = isActive ? "Active" : "Install";
+    btn.setAttribute("data-model-id", c.id);
+    if (isActive || !c.fits) btn.disabled = true;
+    if (!isActive && c.fits) {
+      btn.addEventListener("click", (e) => {
+        const id = e.currentTarget.getAttribute("data-model-id");
+        startModelSettingsInstall(id);
+      });
+    }
+
+    row.appendChild(left);
+    row.appendChild(btn);
+    modelsettingsEl.list.appendChild(row);
+  }
+}
+
+function closeModelSettings() {
+  closeModelSettingsSse();
+  const target = modelsettingsLastScreenId || "screen-setup";
+  const name = target.replace(/^screen-/, "");
+  showScreen(name);
+}
+
+async function startModelSettingsInstall(modelId) {
+  modelsettingsEl.errorBox.style.display = "none";
+  modelsettingsEl.progress.style.display = "block";
+  modelsettingsEl.progressLabel.textContent = "Downloading " + modelId + "...";
+  modelsettingsEl.progressBytes.textContent = "0 / 0";
+  modelsettingsEl.progressFill.style.width = "0%";
+  try {
+    const res = await fetch("/api/setup/install", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ modelId }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "request failed" }));
+      throw new Error(err.error || "install failed");
+    }
+  } catch (e) {
+    modelsettingsEl.errorBox.style.display = "block";
+    modelsettingsEl.errorBox.textContent = "Install failed: " + e.message;
+    modelsettingsEl.progress.style.display = "none";
+  }
+}
+
+function handleModelSettingsSseEvent(ev) {
+  if (modelsettingsEl.screen.classList.contains("active") === false) return;
+  if (ev.type === "model_install_progress") {
+    const pct = ev.totalBytes > 0 ? (ev.completedBytes / ev.totalBytes) * 100 : 0;
+    modelsettingsEl.progressFill.style.width = pct.toFixed(0) + "%";
+    modelsettingsEl.progressBytes.textContent = fmtBytes(ev.completedBytes) + " / " + fmtBytes(ev.totalBytes);
+  } else if (ev.type === "model_install_status") {
+    modelsettingsEl.progressLabel.textContent = ev.status;
+  } else if (ev.type === "model_install_complete") {
+    modelsettingsEl.progress.style.display = "none";
+    refreshModelSettings();
+  } else if (ev.type === "model_install_error") {
+    modelsettingsEl.errorBox.style.display = "block";
+    modelsettingsEl.errorBox.textContent = "Install error: " + ev.message;
+    modelsettingsEl.progress.style.display = "none";
+  }
+}
+
+if (modelsettingsEl.btnOpen) modelsettingsEl.btnOpen.addEventListener("click", openModelSettings);
+if (modelsettingsEl.btnClose) modelsettingsEl.btnClose.addEventListener("click", closeModelSettings);
 
 async function fetchHealth() {
   try {
@@ -1255,6 +1480,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
   const ready = await bootstrapSetup();
   if (ready) {
     showScreen('setup');
+    if (modelsettingsEl.btnOpen) modelsettingsEl.btnOpen.style.display = "";
     fetchHealth();
     initTree('/documents');
   }
