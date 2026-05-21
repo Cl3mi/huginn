@@ -13,6 +13,7 @@ import { CATALOG } from "../llm/model-catalog.ts";
 import { probeHardware, rankCatalog } from "../llm/model-fit.ts";
 import { pullModel, type PullController } from "../llm/model-installer.ts";
 import { setupHolder, applySetupState } from "./setup-state.ts";
+import { logger } from "../utils/logger.ts";
 
 type ActivePull = {
   modelId: string;
@@ -300,8 +301,9 @@ async function handleSetupInstall(req: Request): Promise<Response> {
   };
   activePull = tracker;
   broadcaster.emit({ type: "model_install_started", modelId });
+  logger.info("model install started", { modelId });
 
-  const ctl = await pullModel(modelId, (ev) => {
+  const ctl = pullModel(modelId, (ev) => {
     if (ev.type === "status") {
       broadcaster.emit({ type: "model_install_status", modelId, status: ev.status });
     } else if (ev.type === "progress") {
@@ -325,15 +327,22 @@ async function handleSetupInstall(req: Request): Promise<Response> {
         });
       } catch (e) {
         tracker.lastEvent = "error";
-        tracker.lastError = String(e).slice(0, 120);
-        broadcaster.emit({ type: "model_install_error", modelId, message: tracker.lastError });
+        const msg = String(e).slice(0, 120);
+        tracker.lastError = msg;
+        logger.error("setup state persistence failed after pull", { modelId, error: msg });
+        broadcaster.emit({ type: "model_install_error", modelId, message: msg });
+        if (activePull === tracker) activePull = null;
         return;
       }
+      logger.info("model install complete", { modelId });
       broadcaster.emit({ type: "model_install_complete", modelId });
+      if (activePull === tracker) activePull = null;
     } else if (ev.type === "error") {
       tracker.lastEvent = "error";
       tracker.lastError = ev.message;
+      logger.error("model install error", { modelId, message: ev.message });
       broadcaster.emit({ type: "model_install_error", modelId, message: ev.message });
+      if (activePull === tracker) activePull = null;
     }
   });
   tracker.controller = ctl;
@@ -345,6 +354,7 @@ function handleSetupCancel(): Response {
   if (!activePull || activePull.lastEvent === "complete" || activePull.lastEvent === "error") {
     return json({ status: "no_active_pull" }, 200);
   }
+  logger.info("model install cancelled", { modelId: activePull.modelId });
   activePull.controller.abort();
   return json({ status: "cancelled", modelId: activePull.modelId }, 200);
 }

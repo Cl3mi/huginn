@@ -37,10 +37,10 @@ export type PullController = {
   abort: () => void;
 };
 
-export async function pullModel(
+export function pullModel(
   modelId: string,
   onEvent: (ev: PullEvent) => void,
-): Promise<PullController> {
+): PullController {
   const controller = new AbortController();
   const pc: PullController = { abort: () => controller.abort() };
 
