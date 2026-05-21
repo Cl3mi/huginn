@@ -13,7 +13,8 @@ beforeEach(() => {
   writeFileSync(join(TMP, "documents", "project-alpha", "rfq", "spec.docx"), "");
   writeFileSync(join(TMP, "documents", "project-alpha", "rfq", "drawing.pdf"), "");
   writeFileSync(join(TMP, "documents", "project-alpha", "quotations", "offer.docx"), "");
-  writeFileSync(join(TMP, "documents", "note.txt"), ""); // unsupported — not counted
+  writeFileSync(join(TMP, "documents", "top-level.pdf"), "hello"); // supported file at root
+  writeFileSync(join(TMP, "documents", "note.txt"), ""); // unsupported — not listed
 });
 
 afterEach(() => {
@@ -26,17 +27,39 @@ describe("browseFolder", () => {
   test("lists immediate subdirectories with file counts", async () => {
     const result = await browseFolder(ROOT, ROOT);
     expect(result.path).toBe(ROOT);
-    const names = result.entries.map(e => e.name).sort();
-    expect(names).toEqual(["project-alpha", "project-beta"]);
-    const alpha = result.entries.find(e => e.name === "project-alpha")!;
+    const dirs = result.entries.filter(e => e.type === "dir");
+    const dirNames = dirs.map(e => e.name).sort();
+    expect(dirNames).toEqual(["project-alpha", "project-beta"]);
+    const alpha = dirs.find(e => e.name === "project-alpha")!;
     expect(alpha.type).toBe("dir");
-    expect(alpha.fileCount).toBe(3);
+    if (alpha.type === "dir") expect(alpha.fileCount).toBe(3);
   });
 
   test("counts only supported extensions (.docx .xlsx .pptx .pdf)", async () => {
     const result = await browseFolder(ROOT, ROOT);
-    const beta = result.entries.find(e => e.name === "project-beta")!;
-    expect(beta.fileCount).toBe(0);
+    const beta = result.entries.find(e => e.name === "project-beta" && e.type === "dir");
+    expect(beta).toBeDefined();
+    if (beta && beta.type === "dir") expect(beta.fileCount).toBe(0);
+  });
+
+  test("lists supported files at the current level (skips unsupported)", async () => {
+    const result = await browseFolder(ROOT, ROOT);
+    const files = result.entries.filter(e => e.type === "file");
+    const names = files.map(e => e.name).sort();
+    expect(names).toEqual(["top-level.pdf"]); // note.txt excluded
+    const pdf = files.find(e => e.name === "top-level.pdf")!;
+    if (pdf.type === "file") {
+      expect(pdf.ext).toBe(".pdf");
+      expect(pdf.size).toBe(5); // "hello"
+    }
+  });
+
+  test("returns directories before files, both alphabetically", async () => {
+    const result = await browseFolder(ROOT, ROOT);
+    const types = result.entries.map(e => e.type);
+    const firstFileIdx = types.indexOf("file");
+    const lastDirIdx = types.lastIndexOf("dir");
+    expect(lastDirIdx).toBeLessThan(firstFileIdx);
   });
 
   test("throws FolderBrowseError(403) for path outside root", async () => {

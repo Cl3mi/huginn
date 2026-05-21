@@ -9,11 +9,9 @@ export class FolderBrowseError extends Error {
   }
 }
 
-export interface FolderEntry {
-  name: string;
-  type: "dir";
-  fileCount: number;
-}
+export type FolderEntry =
+  | { name: string; type: "dir"; fileCount: number }
+  | { name: string; type: "file"; ext: string; size: number };
 
 export interface FolderBrowseResult {
   path: string;
@@ -53,15 +51,34 @@ export async function browseFolder(root: string, requestedPath: string): Promise
   }
 
   const rawEntries = await readdir(safePath, { withFileTypes: true });
-  const dirs = rawEntries.filter(e => e.isDirectory());
 
-  const entries: FolderEntry[] = await Promise.all(
-    dirs.map(async (d) => ({
-      name: d.name,
-      type: "dir" as const,
-      fileCount: await countSupportedFiles(join(safePath, d.name)),
-    }))
+  const dirEntries: FolderEntry[] = await Promise.all(
+    rawEntries
+      .filter(e => e.isDirectory())
+      .map(async (d) => ({
+        name: d.name,
+        type: "dir" as const,
+        fileCount: await countSupportedFiles(join(safePath, d.name)),
+      }))
   );
 
-  return { path: safePath, entries };
+  type FileEntry = Extract<FolderEntry, { type: "file" }>;
+  const fileCandidates: (FileEntry | null)[] = await Promise.all(
+    rawEntries
+      .filter(e => e.isFile())
+      .map(async (f): Promise<FileEntry | null> => {
+        const ext = "." + f.name.split(".").pop()!.toLowerCase();
+        if (!SUPPORTED.has(ext)) return null;
+        let size = 0;
+        try { size = (await stat(join(safePath, f.name))).size; } catch { /* skip */ }
+        return { name: f.name, type: "file", ext, size };
+      })
+  );
+  const fileEntries: FolderEntry[] = fileCandidates.filter((e): e is FileEntry => e !== null);
+
+  const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
+  dirEntries.sort((a, b) => collator.compare(a.name, b.name));
+  fileEntries.sort((a, b) => collator.compare(a.name, b.name));
+
+  return { path: safePath, entries: [...dirEntries, ...fileEntries] };
 }
