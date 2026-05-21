@@ -773,6 +773,19 @@ function connectSse() {
     } else if (event.type === 'log') {
       addLog(now, event.level, event.phase, event.message);
 
+    } else if (event.type === 'stats') {
+      const setStat = (id, val) => {
+        if (val == null) return;
+        const el = document.getElementById(id);
+        if (el) el.textContent = String(val);
+      };
+      setStat('st-files', event.filesFound);
+      setStat('st-parsed', event.parsed);
+      setStat('st-pairs', event.pairsScored);
+      setStat('st-vpairs', event.versionPairs);
+      setStat('st-refs', event.references);
+      setStat('st-reqs', event.requirements);
+
     } else if (event.type === 'scan_complete') {
       stopElapsed();
       state.reportFiles = event.reports;

@@ -77,11 +77,37 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     { name: "8-report",       fn: () => runReport(state, ollamaOk),       idx: 8 },
   ];
 
+  // Emit a stats snapshot using state populated so far. Each phase that adds
+  // a relevant count contributes its field; earlier phases keep their fields.
+  const emitStats = (after: string): void => {
+    if (!onProgress) return;
+    const evt: { type: "stats"; filesFound?: number; parsed?: number; pairsScored?: number; versionPairs?: number; references?: number; requirements?: number } = { type: "stats" };
+    // filesFound is known after harvest and onwards
+    evt.filesFound = state.files.length;
+    if (state.parsed.length > 0 || after !== "1-harvest") {
+      evt.parsed = state.parsed.filter(p => p.parseSuccess).length;
+    }
+    // cluster computes pairs and version pairs
+    if (after === "4-cluster" || after === "5-references" || after === "6-requirements" || after === "7-validate" || after === "8-report") {
+      const eligible = state.parsed.filter(p => p.parseSuccess && p.charCount >= 200).length;
+      evt.pairsScored = eligible > 1 ? (eligible * (eligible - 1)) / 2 : 0;
+      evt.versionPairs = state.versionPairs.filter(p => p.confidence === "HIGH").length;
+    }
+    if (after === "5-references" || after === "6-requirements" || after === "7-validate" || after === "8-report") {
+      evt.references = state.references.length;
+    }
+    if (after === "6-requirements" || after === "7-validate" || after === "8-report") {
+      evt.requirements = state.requirements.length;
+    }
+    onProgress(evt);
+  };
+
   for (const phase of phases) {
     const startedAt = Date.now();
     onProgress?.({ type: "phase_start", phase: phase.name, phaseIndex: phase.idx, totalPhases: 9 });
     try {
       await phase.fn();
+      emitStats(phase.name);
       onProgress?.({ type: "phase_end", phase: phase.name, durationMs: Date.now() - startedAt });
     } catch (e) {
       onProgress?.({ type: "scan_error", phase: phase.name, message: String(e).slice(0, 200) });
