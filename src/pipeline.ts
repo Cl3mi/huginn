@@ -6,13 +6,13 @@ import { checkTikaHealth } from "./parsers/tika.ts";
 import { checkOllamaHealth } from "./llm/ollama.ts";
 import { runHarvest } from "./phases/1-harvest.ts";
 import { runParse } from "./phases/2-parse.ts";
-import { runFingerprint } from "./phases/3-fingerprint.ts";
-import { runCluster } from "./phases/4-cluster.ts";
-import { runReferences } from "./phases/5-references.ts";
-import { runRequirements } from "./phases/6-requirements.ts";
-import { runValidate } from "./phases/7-validate.ts";
-import { runReport } from "./phases/8-report.ts";
-import { runProjection } from "./phases/9-projection.ts";
+import { runProjection } from "./phases/3-projection.ts";
+import { runFingerprint } from "./phases/4-fingerprint.ts";
+import { runCluster } from "./phases/5-cluster.ts";
+import { runReferences } from "./phases/6-references.ts";
+import { runRequirements } from "./phases/7-requirements.ts";
+import { runValidate } from "./phases/8-validate.ts";
+import { runReport } from "./phases/9-report.ts";
 import { randomUUID } from "crypto";
 import { readdirSync } from "fs";
 import type { SseEvent } from "./server/sse.ts";
@@ -68,13 +68,13 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
   const phases: Array<{ name: string; fn: () => Promise<void>; idx: number }> = [
     { name: "1-harvest",      fn: () => runHarvest(state),                idx: 0 },
     { name: "2-parse",        fn: () => runParse(state),                  idx: 1 },
-    { name: "9-projection",   fn: () => runProjection(state),             idx: 2 },
-    { name: "3-fingerprint",  fn: () => runFingerprint(state, ollamaOk),  idx: 3 },
-    { name: "4-cluster",      fn: () => runCluster(state),                idx: 4 },
-    { name: "5-references",   fn: () => runReferences(state, ollamaOk),   idx: 5 },
-    { name: "6-requirements", fn: () => runRequirements(state, ollamaOk), idx: 6 },
-    { name: "7-validate",     fn: () => runValidate(state),               idx: 7 },
-    { name: "8-report",       fn: () => runReport(state, ollamaOk),       idx: 8 },
+    { name: "3-projection",   fn: () => runProjection(state),             idx: 2 },
+    { name: "4-fingerprint",  fn: () => runFingerprint(state, ollamaOk),  idx: 3 },
+    { name: "5-cluster",      fn: () => runCluster(state),                idx: 4 },
+    { name: "6-references",   fn: () => runReferences(state, ollamaOk),   idx: 5 },
+    { name: "7-requirements", fn: () => runRequirements(state, ollamaOk), idx: 6 },
+    { name: "8-validate",     fn: () => runValidate(state),               idx: 7 },
+    { name: "9-report",       fn: () => runReport(state, ollamaOk),       idx: 8 },
   ];
 
   // Emit a stats snapshot using state populated so far. Each phase that adds
@@ -88,15 +88,15 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
       evt.parsed = state.parsed.filter(p => p.parseSuccess).length;
     }
     // cluster computes pairs and version pairs
-    if (after === "4-cluster" || after === "5-references" || after === "6-requirements" || after === "7-validate" || after === "8-report") {
+    if (after === "5-cluster" || after === "6-references" || after === "7-requirements" || after === "8-validate" || after === "9-report") {
       const eligible = state.parsed.filter(p => p.parseSuccess && p.charCount >= 200).length;
       evt.pairsScored = eligible > 1 ? (eligible * (eligible - 1)) / 2 : 0;
       evt.versionPairs = state.versionPairs.filter(p => p.confidence === "HIGH").length;
     }
-    if (after === "5-references" || after === "6-requirements" || after === "7-validate" || after === "8-report") {
+    if (after === "6-references" || after === "7-requirements" || after === "8-validate" || after === "9-report") {
       evt.references = state.references.length;
     }
-    if (after === "6-requirements" || after === "7-validate" || after === "8-report") {
+    if (after === "7-requirements" || after === "8-validate" || after === "9-report") {
       evt.requirements = state.requirements.length;
     }
     onProgress(evt);

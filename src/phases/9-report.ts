@@ -4,7 +4,7 @@ import { promisify } from "util";
 import type { ScannerState } from "../state.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
-import { runNarrative } from "./8-narrative.ts";
+import { runNarrative } from "./9-narrative.ts";
 
 const writeFileAsync = promisify(writeFile);
 
@@ -805,7 +805,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
 }
 
 export async function runReport(state: ScannerState, ollamaAvailable = false): Promise<void> {
-  const t = logger.phaseStart("8-report");
+  const t = logger.phaseStart("9-report");
   state.completedAt = new Date();
 
   const timestamp = state.startedAt.toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -860,7 +860,7 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
     logger.warn("Markdown report generation failed — skipping (JSON report is safe)", { error: String(mdErr) });
   }
 
-  logger.phaseEnd("8-report", t, { jsonPath, mdPath });
+  logger.phaseEnd("9-report", t, { jsonPath, mdPath });
 
   // Narrative report (additive — does not affect JSON/human.md output)
   try {

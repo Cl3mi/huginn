@@ -178,8 +178,8 @@ function sectionPlaceholder(reason: string): string {
 }
 
 // Inline metadata quality score computation
-// Mirrors computeMetadataQualityScore() in 8-report.ts — NOT extracted to shared util
-// (keeps this change purely additive with no modifications to 8-report.ts logic)
+// Mirrors computeMetadataQualityScore() in 9-report.ts — NOT extracted to shared util
+// (keeps this change purely additive with no modifications to 9-report.ts logic)
 function computeInlineMetadataScore(state: ScannerState): number {
   const totalParsed = state.parsed.length;
   const successRate = totalParsed > 0

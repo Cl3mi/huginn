@@ -8,7 +8,7 @@ import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
 import { parseWithTika } from "../parsers/tika.ts";
 import { parseWithOfficeParser } from "../parsers/officeparser.ts";
 import { compareParserResults } from "../parsers/parser-compare.ts";
-import { ProjectionAccumulator, projectDocument } from "./9-projection.ts";
+import { ProjectionAccumulator, projectDocument } from "./3-projection.ts";
 
 const execFileAsync = promisify(execFile);
 

@@ -93,7 +93,7 @@ Format: { "docType": "lastenheft", "confidence": 0.9 }`;
 
 // ============================================================
 // Narrative report prompt functions (English output)
-// Called by 8-narrative.ts with pre-sanitized metric inputs only.
+// Called by 9-narrative.ts with pre-sanitized metric inputs only.
 // Input types defined as unknown — content-safety enforced by callers.
 // ============================================================
 

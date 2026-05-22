@@ -1,6 +1,6 @@
-// src/phases/9-projection.test.ts
+// src/phases/3-projection.test.ts
 import { expect, test } from "bun:test";
-import { ProjectionAccumulator, projectDocument } from "./9-projection.ts";
+import { ProjectionAccumulator, projectDocument } from "./3-projection.ts";
 import type { ParsedDocument } from "../state.ts";
 
 function makeDoc(overrides: Partial<ParsedDocument> = {}): ParsedDocument {

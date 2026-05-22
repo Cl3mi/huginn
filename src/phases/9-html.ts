@@ -1,4 +1,4 @@
-// Standalone CLI: bun src/phases/8-html.ts <path-to-scan-report.json>
+// Standalone CLI: bun src/phases/9-html.ts <path-to-scan-report.json>
 // Reads JSON report, generates self-contained HTML dashboard alongside it.
 import { readFileSync, writeFileSync } from "fs";
 import { join, dirname, basename } from "path";
@@ -6,7 +6,7 @@ import { join, dirname, basename } from "path";
 async function main() {
   const jsonPath = process.argv[2];
   if (!jsonPath) {
-    console.error("Usage: bun src/phases/8-html.ts <path-to-scan-report.json>");
+    console.error("Usage: bun src/phases/9-html.ts <path-to-scan-report.json>");
     process.exit(1);
   }
 

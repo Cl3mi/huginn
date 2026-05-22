@@ -24,7 +24,7 @@ function check(
 }
 
 export async function runValidate(state: ScannerState): Promise<void> {
-  const t = logger.phaseStart("7-validate");
+  const t = logger.phaseStart("8-validate");
   const checks: ConsistencyCheck[] = [];
 
   // 0. CORPUS_EMPTY — all downstream metrics are meaningless
@@ -38,7 +38,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
       interpretation: clamp("No documents were parsed — DOCUMENTS_ROOT may be wrong or contain no supported file types. All downstream metrics are unreliable."),
     });
     state.consistencyChecks = checks;
-    logger.phaseEnd("7-validate", t, { totalChecks: 1, critical: 1, warnings: 0, passed: 0 });
+    logger.phaseEnd("8-validate", t, { totalChecks: 1, critical: 1, warnings: 0, passed: 0 });
     return;
   }
 
@@ -383,7 +383,7 @@ export async function runValidate(state: ScannerState): Promise<void> {
   const criticalCount = checks.filter((c) => !c.passed && c.severity === "CRITICAL").length;
   const warningCount = checks.filter((c) => !c.passed && c.severity === "WARNING").length;
 
-  logger.phaseEnd("7-validate", t, {
+  logger.phaseEnd("8-validate", t, {
     totalChecks: checks.length,
     critical: criticalCount,
     warnings: warningCount,

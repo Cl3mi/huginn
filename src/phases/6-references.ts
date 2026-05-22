@@ -275,7 +275,7 @@ function resolveReference(
 }
 
 export async function runReferences(state: ScannerState, ollamaAvailable: boolean): Promise<void> {
-  const t = logger.phaseStart("5-references");
+  const t = logger.phaseStart("6-references");
 
   const allRawNorms: string[] = [];
   const docRawRefs = new Map<string, RawRefExtractions>();
@@ -366,7 +366,7 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
 
   const resolvedCount = state.references.filter((r) => r.resolutionMethod !== "unresolved").length;
 
-  logger.phaseEnd("5-references", t, {
+  logger.phaseEnd("6-references", t, {
     totalRefs: state.references.length,
     resolved: resolvedCount,
     unresolved: state.references.length - resolvedCount,

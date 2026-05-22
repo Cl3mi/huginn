@@ -7,7 +7,7 @@ import { estimateTokens, truncateToTokens } from "../utils/tokenizer.ts";
 import { embed } from "../llm/ollama.ts";
 
 export async function runFingerprint(state: ScannerState, ollamaAvailable: boolean): Promise<void> {
-  const t = logger.phaseStart("3-fingerprint");
+  const t = logger.phaseStart("4-fingerprint");
 
   const embedInputs: Array<{ docId: string; text: string }> = [];
 
@@ -106,7 +106,7 @@ export async function runFingerprint(state: ScannerState, ollamaAvailable: boole
   }
 
   const withEmbeddings = state.fingerprints.filter((f) => f.semanticEmbedding).length;
-  logger.phaseEnd("3-fingerprint", t, {
+  logger.phaseEnd("4-fingerprint", t, {
     fingerprints: state.fingerprints.length,
     withSemanticEmbeddings: withEmbeddings,
     ...(CONFIG.sectionEmbeddingsEnabled ? { sectionEmbeddings: totalSectionEmbeddings } : {}),

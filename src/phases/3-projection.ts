@@ -1,4 +1,4 @@
-// src/phases/9-projection.ts
+// src/phases/3-projection.ts
 import type {
   ScannerState,
   ParsedDocument,
@@ -481,7 +481,7 @@ export async function runProjection(state: ScannerState): Promise<void> {
     logger.warn("Phase 9: no accumulator from Phase 2 — skipping corpus analysis");
     return;
   }
-  setPhase("9-projection");
+  setPhase("3-projection");
   logger.info("Phase 9: Ingestion Projection — corpus analysis", {
     projections: state.ingestionProjections.length,
   });
