@@ -12,7 +12,7 @@ export const CONFIG = {
   // configurable via OLLAMA_EMBED_TIMEOUT_MS / OLLAMA_COMPLETE_TIMEOUT_MS
   ollamaEmbedTimeoutMs: parseInt(process.env["OLLAMA_EMBED_TIMEOUT_MS"] || "30000", 10),
   ollamaCompleteTimeoutMs: parseInt(process.env["OLLAMA_COMPLETE_TIMEOUT_MS"] || "60000", 10),
-  get llmSampleRate() { return parseFloat(process.env["LLM_SAMPLE_RATE"] || "0.05"); },
+  get llmSampleRate() { return parseFloat(process.env["LLM_SAMPLE_RATE"] || "0.10"); },
   parserDivergenceThreshold: 0.20,  // 20% char count difference triggers alert
   scannedPdfCharsPerPage: 100,      // below this = likely scanned
   ocrRequiredCharsPerPage: 50,      // below this = definitely needs OCR
