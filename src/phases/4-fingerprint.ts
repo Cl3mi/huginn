@@ -1,4 +1,5 @@
 import type { ScannerState, DocumentFingerprint, RequirementDensityVector, StructuralFingerprint, ParsedDocument } from "../state.ts";
+import type { SectorProfile } from "../profiles/types.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { createMinHashSignature } from "../utils/minhash.ts";
@@ -29,7 +30,7 @@ export async function runFingerprint(state: ScannerState, ollamaAvailable: boole
     const headingMinHash = createMinHashSignature([...new Set(headingTokens)], 128);
 
     // use cached text from Phase 2 — avoids re-reading binary files
-    const requirementDensity = computeRequirementDensity(doc.textContent ?? "", doc.pageCount ?? 1);
+    const requirementDensity = computeRequirementDensity(doc.textContent ?? "", doc.pageCount ?? 1, state.sectorProfile);
 
     const fp: DocumentFingerprint = {
       docId: doc.id,
@@ -115,33 +116,39 @@ export async function runFingerprint(state: ScannerState, ollamaAvailable: boole
 
 function computeRequirementDensity(
   text: string,
-  pageCount: number
+  pageCount: number,
+  profile: SectorProfile,
 ): RequirementDensityVector {
   if (!text) return zeroDensity();
 
   const pages = Math.max(pageCount, 1);
 
-  const mussCount = findAllMatches(PATTERNS.muss, text).length;
-  const sollCount = findAllMatches(PATTERNS.soll, text).length;
-  const kannCount = findAllMatches(PATTERNS.kann, text).length;
-  const informativCount = findAllMatches(PATTERNS.informativ, text).length;
+  const mandatoryCount  = findAllMatches(new RegExp(profile.requirementPatterns.MANDATORY.source,  "gi"), text).length;
+  const recommendedCount = findAllMatches(new RegExp(profile.requirementPatterns.RECOMMENDED.source, "gi"), text).length;
+  const permittedCount  = findAllMatches(new RegExp(profile.requirementPatterns.PERMITTED.source,   "gi"), text).length;
+  const informativeCount = text.split(/[.!?]+/).filter((s) => s.trim().length > 5).length;
+
+  const entityCount = profile.entityIdPatterns
+    ? profile.entityIdPatterns.reduce((sum, { pattern }) =>
+        sum + findAllMatches(new RegExp(pattern.source, "gi"), text).length, 0)
+    : 0;
+
   const quantCount = findAllMatches(PATTERNS.quantitativeValue, text).length;
-  const fikbCount = findAllMatches(PATTERNS.fikb, text).length + findAllMatches(PATTERNS.kbMaster, text).length;
 
   return {
-    mussPerPage: mussCount / pages,
-    sollPerPage: sollCount / pages,
-    kannPerPage: kannCount / pages,
-    informativPerPage: informativCount / pages,
+    mandatoryPerPage:   mandatoryCount  / pages,
+    recommendedPerPage: recommendedCount / pages,
+    permittedPerPage:   permittedCount  / pages,
+    informativePerPage: informativeCount / pages,
     quantitativeValuesPerPage: quantCount / pages,
-    fikbReferencesPerPage: fikbCount / pages,
+    entityRefPerPage:   entityCount / pages,
   };
 }
 
 function zeroDensity(): RequirementDensityVector {
   return {
-    mussPerPage: 0, sollPerPage: 0, kannPerPage: 0,
-    informativPerPage: 0, quantitativeValuesPerPage: 0, fikbReferencesPerPage: 0,
+    mandatoryPerPage: 0, recommendedPerPage: 0, permittedPerPage: 0,
+    informativePerPage: 0, quantitativeValuesPerPage: 0, entityRefPerPage: 0,
   };
 }
 
