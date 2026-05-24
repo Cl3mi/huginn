@@ -180,18 +180,18 @@ async function validateWithLlm(
       continue;
     }
     const callDurationMs = Date.now() - callStart;
-    perDocStats.get(docId)!.durationMs += callDurationMs;
+    const docEntry = perDocStats.get(docId)!;
+    docEntry.durationMs += callDurationMs;
 
-    const docVerdicts = perDocStats.get(docId)!;
     if (verdict.startsWith("LOW")) {
       lowCount++;
-      docVerdicts.recovered++;
+      docEntry.recovered++;
     } else if (verdict.startsWith("HIGH")) {
       highCount++;
-      docVerdicts.rejected++;
+      docEntry.rejected++;
     } else {
       plausibleCount++;
-      docVerdicts.confirmed++;
+      docEntry.confirmed++;
     }
 
     if (!typeStats.has(docType)) typeStats.set(docType, { agree: 0, disagree: 0, count: 0 });
@@ -342,8 +342,9 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
     };
 
     if (state.llmTrace !== undefined && validation.perDocStats.size > 0) {
+      const parsedById = new Map(state.parsed.map((d) => [d.id, d]));
       for (const [docId, stats] of validation.perDocStats) {
-        const doc = state.parsed.find((d) => d.id === docId);
+        const doc = parsedById.get(docId);
         const regexCount = doc?.requirementQuality?.confirmed ?? 0;
         const total = stats.confirmed + stats.rejected + stats.recovered;
         state.llmTrace.push({
