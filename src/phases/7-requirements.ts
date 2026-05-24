@@ -152,6 +152,7 @@ async function validateWithLlm(
   confidenceInterval: { lower: number; upper: number };
   sampledDocIds: string[];
   byDocumentType: Record<string, { sampled: number; avgDelta: number }>;
+  perDocStats: Map<string, { confirmed: number; rejected: number; recovered: number; durationMs: number }>;
   llmRecoveredCount?: number;
   llmRejectedCount?: number;
 }> {
@@ -160,11 +161,16 @@ async function validateWithLlm(
   let highCount = 0;   // LLM says regex overcounts → likely false positives
   const sampledDocIds: string[] = [];
   const typeStats = new Map<string, { agree: number; disagree: number; count: number }>();
+  const perDocStats = new Map<string, { confirmed: number; rejected: number; recovered: number; durationMs: number }>();
 
   for (const { docId, docType, heading, signals } of sampledSections) {
     sampledDocIds.push(docId);
+    if (!perDocStats.has(docId)) {
+      perDocStats.set(docId, { confirmed: 0, rejected: 0, recovered: 0, durationMs: 0 });
+    }
 
     let verdict = "PLAUSIBLE";
+    const callStart = Date.now();
     try {
       const prompt = requirementValidationPrompt(signals);
       const response = await complete(prompt, { temperature: 0.0, maxTokens: 10 });
@@ -173,10 +179,20 @@ async function validateWithLlm(
       logger.warn("LLM validation failed for section", { docId, heading, error: String(e) });
       continue;
     }
+    const callDurationMs = Date.now() - callStart;
+    perDocStats.get(docId)!.durationMs += callDurationMs;
 
-    if (verdict.startsWith("LOW")) { lowCount++; }
-    else if (verdict.startsWith("HIGH")) { highCount++; }
-    else { plausibleCount++; }
+    const docVerdicts = perDocStats.get(docId)!;
+    if (verdict.startsWith("LOW")) {
+      lowCount++;
+      docVerdicts.recovered++;
+    } else if (verdict.startsWith("HIGH")) {
+      highCount++;
+      docVerdicts.rejected++;
+    } else {
+      plausibleCount++;
+      docVerdicts.confirmed++;
+    }
 
     if (!typeStats.has(docType)) typeStats.set(docType, { agree: 0, disagree: 0, count: 0 });
     const ts = typeStats.get(docType)!;
@@ -204,6 +220,7 @@ async function validateWithLlm(
     },
     sampledDocIds: [...new Set(sampledDocIds)],
     byDocumentType,
+    perDocStats,
     ...(lowCount > 0 ? { llmRecoveredCount: lowCount } : {}),
     ...(highCount > 0 ? { llmRejectedCount: highCount } : {}),
   };
@@ -323,6 +340,24 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
       ...((validation.llmRecoveredCount ?? 0) > 0 ? { llmRecoveredCount: validation.llmRecoveredCount } : {}),
       ...((validation.llmRejectedCount ?? 0) > 0 ? { llmRejectedCount: validation.llmRejectedCount } : {}),
     };
+
+    if (state.llmTrace !== undefined && validation.perDocStats.size > 0) {
+      for (const [docId, stats] of validation.perDocStats) {
+        const doc = state.parsed.find((d) => d.id === docId);
+        const regexCount = doc?.requirementQuality?.confirmed ?? 0;
+        const total = stats.confirmed + stats.rejected + stats.recovered;
+        state.llmTrace.push({
+          docId,
+          docType: doc?.detectedDocType ?? "other",
+          regexCount,
+          llmConfirmedCount: stats.confirmed,
+          llmRejectedCount: stats.rejected,
+          llmRecoveredCount: stats.recovered,
+          delta: total > 0 ? (stats.rejected + stats.recovered) / total : 0,
+          llmCallDurationMs: stats.durationMs,
+        });
+      }
+    }
 
     if (validation.regexVsLlmDelta > 0.2) {
       logger.warn("LLM validation: significant regex vs LLM divergence", {
