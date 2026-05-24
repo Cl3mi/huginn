@@ -1,46 +1,44 @@
 import type { ScannerState, ExtractedRequirement, ParsedDocument } from "../state.ts";
+import type { SectorProfile, ReqType } from "../profiles/types.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
 import { complete } from "../llm/ollama.ts";
 import { requirementValidationPrompt, type SectionSignals } from "../llm/prompts.ts";
 
-type RequirementType = ExtractedRequirement["type"];
-type RequirementCategory = ExtractedRequirement["category"];
-
-function classifyType(text: string): RequirementType {
-  if (PATTERNS.muss.test(text)) { PATTERNS.muss.lastIndex = 0; return "MUSS"; }
-  PATTERNS.muss.lastIndex = 0;
-  if (PATTERNS.soll.test(text)) { PATTERNS.soll.lastIndex = 0; return "SOLL"; }
-  PATTERNS.soll.lastIndex = 0;
-  if (PATTERNS.kann.test(text)) { PATTERNS.kann.lastIndex = 0; return "KANN"; }
-  PATTERNS.kann.lastIndex = 0;
-  // Declarative requirements — numeric specs without modal verbs
-  if (PATTERNS.declarative.test(text)) { PATTERNS.declarative.lastIndex = 0; return "DEKLARATIV"; }
-  PATTERNS.declarative.lastIndex = 0;
-  return "INFORMATIV";
+function classifyType(text: string, profile: SectorProfile): ReqType {
+  const reset = (re: RegExp) => { re.lastIndex = 0; };
+  const { MANDATORY, RECOMMENDED, PERMITTED, DECLARATIVE } = profile.requirementPatterns;
+  if (MANDATORY.test(text))   { reset(MANDATORY);   return "MANDATORY"; }
+  reset(MANDATORY);
+  if (RECOMMENDED.test(text)) { reset(RECOMMENDED); return "RECOMMENDED"; }
+  reset(RECOMMENDED);
+  if (PERMITTED.test(text))   { reset(PERMITTED);   return "PERMITTED"; }
+  reset(PERMITTED);
+  if (DECLARATIVE.test(text)) { reset(DECLARATIVE); return "DECLARATIVE"; }
+  reset(DECLARATIVE);
+  return "INFORMATIVE";
 }
 
-function classifyCategory(text: string): RequirementCategory {
-  const lower = text.toLowerCase();
-  if (PATTERNS.safetyKeywords.test(text)) { PATTERNS.safetyKeywords.lastIndex = 0; return "Sicherheit"; }
-  PATTERNS.safetyKeywords.lastIndex = 0;
-  if (PATTERNS.materialKeywords.test(text)) { PATTERNS.materialKeywords.lastIndex = 0; return "Material"; }
-  PATTERNS.materialKeywords.lastIndex = 0;
-  if (PATTERNS.toleranceKeywords.test(text)) { PATTERNS.toleranceKeywords.lastIndex = 0; return "Toleranz"; }
-  PATTERNS.toleranceKeywords.lastIndex = 0;
-  if (PATTERNS.testingKeywords.test(text)) { PATTERNS.testingKeywords.lastIndex = 0; return "Prüfung"; }
-  PATTERNS.testingKeywords.lastIndex = 0;
-  if (PATTERNS.packagingKeywords.test(text)) { PATTERNS.packagingKeywords.lastIndex = 0; return "Verpackung"; }
-  PATTERNS.packagingKeywords.lastIndex = 0;
-  if (PATTERNS.deliveryKeywords.test(text)) { PATTERNS.deliveryKeywords.lastIndex = 0; return "Lieferung"; }
-  PATTERNS.deliveryKeywords.lastIndex = 0;
-  return "Sonstiges";
+function classifyCategory(
+  text: string,
+  profile: SectorProfile,
+): ExtractedRequirement["category"] {
+  const safetyRe = profile.safetyKeywords;
+  if (safetyRe.test(text)) { safetyRe.lastIndex = 0; return "Safety"; }
+  safetyRe.lastIndex = 0;
+  if (PATTERNS.materialKeywords.test(text))   { PATTERNS.materialKeywords.lastIndex = 0;   return "Material"; }
+  if (PATTERNS.toleranceKeywords.test(text))  { PATTERNS.toleranceKeywords.lastIndex = 0;  return "Tolerance"; }
+  if (PATTERNS.testingKeywords.test(text))    { PATTERNS.testingKeywords.lastIndex = 0;    return "Testing"; }
+  if (PATTERNS.packagingKeywords.test(text))  { PATTERNS.packagingKeywords.lastIndex = 0;  return "Packaging"; }
+  const delivRe = profile.deliveryKeywords;
+  if (delivRe && delivRe.test(text)) { delivRe.lastIndex = 0; return "Delivery"; }
+  return "Other";
 }
 
-function isSafetyRelevant(text: string): boolean {
-  const result = PATTERNS.safetyKeywords.test(text);
-  PATTERNS.safetyKeywords.lastIndex = 0;
+function isSafetyRelevant(text: string, profile: SectorProfile): boolean {
+  const result = profile.safetyKeywords.test(text);
+  profile.safetyKeywords.lastIndex = 0;
   return result;
 }
 
@@ -55,11 +53,17 @@ function extractQuantitativeValueInfo(text: string): { count: number; unitTypes:
   return { count: matches.length, unitTypes: [...new Set(units)].slice(0, 5) };
 }
 
-function extractLinkedFikb(text: string): string | undefined {
-  const fikbs = findAllMatches(PATTERNS.fikb, text);
-  const kbs = findAllMatches(PATTERNS.kbMaster, text);
-  const all = [...fikbs, ...kbs];
-  return all.length > 0 ? all[0]!.slice(0, 30) : undefined;
+function extractLinkedEntityRef(
+  text: string,
+  profile: SectorProfile,
+): string | undefined {
+  if (!profile.entityIdPatterns || profile.entityIdPatterns.length === 0) return undefined;
+  for (const { pattern } of profile.entityIdPatterns) {
+    const pat = new RegExp(pattern.source, "gi");
+    const matches = findAllMatches(pat, text);
+    if (matches.length > 0) return matches[0]!.slice(0, 30);
+  }
+  return undefined;
 }
 
 interface RequirementFilterResult {
@@ -69,10 +73,12 @@ interface RequirementFilterResult {
 }
 
 // Three pre-filters a sentence must pass to count as a confirmed requirement
-function applyRequirementFilters(sentence: string): RequirementFilterResult {
-  // Filter 1 — Negation exclusion
-  const negated = /nicht\s+muss|muss\s+nicht|nicht\s+soll|soll\s+nicht/i.test(sentence);
-  if (negated) return { confirmed: false, negated: true, uncertain: false };
+function applyRequirementFilters(sentence: string, profile: SectorProfile): RequirementFilterResult {
+  // Filter 1 — Negation exclusion (German modal only)
+  if (profile.requirementLanguageFamily === "german_modal") {
+    const negated = /nicht\s+muss|muss\s+nicht|nicht\s+soll|soll\s+nicht/i.test(sentence);
+    if (negated) return { confirmed: false, negated: true, uncertain: false };
+  }
 
   // Filter 2 — Subject plausibility: needs a subject noun, technical abbreviation, or compound noun
   const hasGermanSubject = /^(?:Die|Das|Der|Ein|Eine|Alle|Jede[rs]?)\s+[A-ZÄÖÜ]/.test(sentence.trim());
@@ -220,30 +226,30 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
     const docType = doc.detectedDocType ?? "other";
 
     for (const section of sections) {
-      const type = classifyType(section.text);
-      if (type === "INFORMATIV") continue;
+      const type = classifyType(section.text, state.sectorProfile);
+      if (type === "INFORMATIVE") continue;
 
       rawCount++;
 
       const sentences = section.text.split(/(?<=[.!?])\s+|(?<=[.!?])$/);
       let reqSentence: string;
-      if (type === "DEKLARATIV") {
+      if (type === "DECLARATIVE") {
         reqSentence = sentences.find((s) => {
-          const result = PATTERNS.declarative.test(s.trim());
-          PATTERNS.declarative.lastIndex = 0;
+          const result = state.sectorProfile.requirementPatterns.DECLARATIVE.test(s.trim());
+          state.sectorProfile.requirementPatterns.DECLARATIVE.lastIndex = 0;
           return result;
         }) ?? section.text;
       } else {
         reqSentence = sentences.find((s) => {
           const trimmed = s.trim();
-          return PATTERNS.muss.test(trimmed) || PATTERNS.soll.test(trimmed) || PATTERNS.kann.test(trimmed);
+          const { MANDATORY, RECOMMENDED, PERMITTED } = state.sectorProfile.requirementPatterns;
+          const result = MANDATORY.test(trimmed) || RECOMMENDED.test(trimmed) || PERMITTED.test(trimmed);
+          MANDATORY.lastIndex = 0; RECOMMENDED.lastIndex = 0; PERMITTED.lastIndex = 0;
+          return result;
         }) ?? section.text;
-        PATTERNS.muss.lastIndex = 0;
-        PATTERNS.soll.lastIndex = 0;
-        PATTERNS.kann.lastIndex = 0;
       }
 
-      const filterResult = applyRequirementFilters(reqSentence);
+      const filterResult = applyRequirementFilters(reqSentence, state.sectorProfile);
       if (filterResult.negated) { negatedCount++; continue; }
       if (filterResult.uncertain) { uncertainCount++; continue; }
 
@@ -251,12 +257,13 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
       // (planning docs, trackers, meeting minutes produce structural false positives)
       confirmedCount++;
       if (!doc.requirementMetadataReliable) continue;
-      const category = classifyCategory(section.text);
-      const safety = isSafetyRelevant(section.text);
+      const category = classifyCategory(section.text, state.sectorProfile);
+      const safety = isSafetyRelevant(section.text, state.sectorProfile);
       const quantInfo = extractQuantitativeValueInfo(section.text);
       const hasQuantitative = (quantInfo?.count ?? 0) > 0;
-      const linkedFikb = extractLinkedFikb(section.text);
-      const normMatches = findAllMatches(PATTERNS.norm, section.text);
+      const linkedEntityRef = extractLinkedEntityRef(section.text, state.sectorProfile);
+      const normPat = new RegExp(state.sectorProfile.normPattern.source, "gi");
+      const normMatches = findAllMatches(normPat, section.text);
       const linkedNorm = normMatches[0]?.slice(0, 30);
 
       state.requirements.push({
@@ -267,7 +274,7 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
         hasQuantitativeValue: hasQuantitative,
         ...(quantInfo ? { quantitativeValueCount: quantInfo.count, quantitativeUnitTypes: quantInfo.unitTypes } : {}),
         ...(linkedNorm ? { linkedNorm } : {}),
-        ...(linkedFikb ? { linkedFikb } : {}),
+        ...(linkedEntityRef !== undefined ? { linkedEntityRef } : {}),
         isSafetyRelevant: safety,
         source: "regex" as const,
       });
