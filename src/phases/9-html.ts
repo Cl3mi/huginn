@@ -717,7 +717,7 @@ document.addEventListener('DOMContentLoaded', function() {
     return rows;
   }
 
-  function TYPE_COLOR(t) { return { MUSS: '#d32f2f', KANN: '#1e88e5', SOLL: '#ff6b35', DEKLARATIV: '#43a047' }[t] || '#607d8b'; }
+  function TYPE_COLOR(t) { return { MANDATORY: '#d32f2f', RECOMMENDED: '#ff6b35', PERMITTED: '#1e88e5', DECLARATIVE: '#43a047' }[t] || '#607d8b'; }
 
   function renderReqs() {
     var rows = getVisible();

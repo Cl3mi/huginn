@@ -556,7 +556,8 @@ function buildRagSynthesisInput(
 async function generateCorpusOverview(state: ScannerState): Promise<string> {
   try {
     const input = buildCorpusOverviewInput(state);
-    const prompt = narrativeCorpusOverviewPrompt(input);
+    const sectorCtx = `Sector: ${state.sectorProfile.label}.\n`;
+    const prompt = sectorCtx + narrativeCorpusOverviewPrompt(input);
     const response = await complete(prompt, { temperature: 0.3, maxTokens: 700 });
     const cleaned = response
       .trim()

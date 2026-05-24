@@ -334,7 +334,7 @@ function generateDecisions(state: ScannerState, push: (...l: string[]) => void):
   push("### DEC-METADATA: Requirement Metadata for RAG Filtering");
   push(`- ${reliableDocs}/${parsed.length} documents have reliable requirement metadata`);
   push(`- LLM validation: ${state.llmValidation.sampledDocIds.length > 0 ? `delta=${(state.llmValidation.regexVsLlmDelta * 100).toFixed(0)}%` : "not run (Ollama unavailable)"}`);
-  push(`- **Recommendation:** ${reliableDocs > 0 ? `Use MUSS/SOLL/KANN as retrieval filter for ${reliableDocs} reliable doc types. Exclude planning/meeting/tracker docs from metadata filtering.` : "Do not use requirement type as retrieval filter — no reliable docs found."}`);
+  push(`- **Recommendation:** ${reliableDocs > 0 ? `Use MANDATORY/RECOMMENDED/PERMITTED as retrieval filter for ${reliableDocs} reliable doc types. Exclude planning/meeting/tracker docs from metadata filtering.` : "Do not use requirement type as retrieval filter — no reliable docs found."}`);
   push(`- **Confidence:** ${metaReliable ? "MEDIUM" : "LOW — resolve consistency check failures first"}`);
   push("");
 
@@ -382,6 +382,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   push(`**Scan ID:** ${state.scanId}`);
   push(`**Started:** ${state.startedAt.toISOString()}`);
   push(`**Completed:** ${state.completedAt?.toISOString() ?? "incomplete"}`);
+  push(`- **Sector Profile:** ${state.sectorProfile.label}`);
   push("");
 
   // IMP-11: Metadata quality score — prominently placed before executive summary
@@ -444,7 +445,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   if (unreliableReqDocs.length > 0) {
     const shownUnreliable = unreliableReqDocs.slice(0, 5).map(d => d.filename.slice(0, 60));
     const moreUnreliable = unreliableReqDocs.length > 5 ? ` …+${unreliableReqDocs.length - 5} more` : "";
-    push(`> ⚠️ **${unreliableReqDocs.length} document(s)** have requirement-type keywords but are NOT reliable for requirement metadata (wrong doc type). Do not use MUSS/SOLL/KANN as retrieval filter for: ${shownUnreliable.join(", ")}${moreUnreliable}`);
+    push(`> ⚠️ **${unreliableReqDocs.length} document(s)** have requirement-type keywords but are NOT reliable for requirement metadata (wrong doc type). Do not use MANDATORY/RECOMMENDED/PERMITTED as retrieval filter for: ${shownUnreliable.join(", ")}${moreUnreliable}`);
     push("");
   }
 
@@ -678,7 +679,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     const needsOcr = scannedTypeFrac > 0.2;
     const poorHeadings = headingConf < 0.7;
     const highAvgReqs = avgReqs > 5;
-    const reqMeta = reqReliable > 0 ? "✅ Use MUSS/SOLL as retrieval filter" : "❌ Do not use requirement type as filter";
+    const reqMeta = reqReliable > 0 ? "✅ Use MANDATORY/RECOMMENDED as retrieval filter" : "❌ Do not use requirement type as filter";
     if (needsOcr || poorHeadings) {
       push(`- **RAG recommendation:** ${needsOcr ? "OCR pre-processing required. " : ""}${poorHeadings ? "Heading metadata unreliable. " : ""}Chunk strategy: ${dominantStrategy}. ${reqMeta}.`);
     } else {
