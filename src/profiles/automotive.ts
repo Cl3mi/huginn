@@ -93,3 +93,12 @@ export const automotiveDe: SectorProfile = {
     { pattern: /\bKB[-_]?Master[-_\s]?(?:Nummer|Nr\.?)[-\s:]*\d{1,8}(?!\w)/gi,              type: "kb_master" },
   ],
 };
+
+// Inline integrity check — runs at import time during tests.
+// Keeps profile authors honest: all required patterns must be non-empty regexes.
+if (process.env["NODE_ENV"] === "test") {
+  const p = automotiveDe;
+  if (!p.normPattern.source || !p.safetyKeywords.source) {
+    throw new Error("automotive profile: missing required pattern");
+  }
+}
