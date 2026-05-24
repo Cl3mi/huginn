@@ -47,7 +47,7 @@ export function mergeDebugSettings(
 ): DebugSettings {
   const result = { ...current };
   for (const key of Object.keys(patch) as Array<keyof DebugSettings>) {
-    if (typeof patch[key] === "boolean") {
+    if (key in DEFAULT && typeof patch[key] === "boolean") {
       result[key] = patch[key] as boolean;
     }
   }
