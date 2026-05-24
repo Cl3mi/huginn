@@ -201,6 +201,16 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
       </div>
 
       <div class="alert alert-error" id="wizard-error" style="display:none;"></div>
+
+      <div id="wizard-company-step" style="display:none;margin-top:1rem;">
+        <div style="font-family:var(--font-heading);font-size:1.125rem;font-weight:600;margin-bottom:.5rem;">Your Company Name</div>
+        <div class="field-hint" style="margin-bottom:.75rem;">Used to classify documents as internal or external. Can be updated later in settings.</div>
+        <input type="text" class="path-input" id="wizard-company-name" placeholder="e.g. Helios Automotive AG" style="width:100%;margin-bottom:.5rem;">
+        <div class="field-hint" style="margin-bottom:.75rem;">Optional aliases (comma-separated)</div>
+        <input type="text" class="path-input" id="wizard-company-aliases" placeholder="optional aliases, e.g. HAG" style="width:100%;margin-bottom:1rem;">
+        <button class="btn-primary" id="btn-wizard-company-save">Save and continue</button>
+        <button class="btn-secondary" id="btn-wizard-company-skip" style="margin-left:.5rem;">Skip for now</button>
+      </div>
     </div>
   </div>
 </div>
@@ -303,6 +313,11 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
                 <option value="false">Disabled</option>
                 <option value="true">Enabled (slower)</option>
               </select>
+            </div>
+            <div class="field">
+              <label for="sector-profile">Sector Profile</label>
+              <select class="select-field" id="sector-profile"></select>
+              <div class="field-hint">Document domain — determines norm patterns and requirement language.</div>
             </div>
           </div>
         </div>
@@ -656,11 +671,9 @@ function handleWizardSseEvent(ev) {
     wizardCandidates = [];
     wizardRecommended = null;
     wizardSelectedModelId = null;
-    // Switch to the main scan-config screen.
-    showScreen('setup');
-    if (modelsettingsEl.btnOpen) modelsettingsEl.btnOpen.style.display = "";
-    if (typeof fetchHealth === "function") fetchHealth();
-    if (typeof initTree === "function") initTree('/documents');
+    // Show company identity step before transitioning to main screen.
+    wizardEl.progress.style.display = 'none';
+    document.getElementById('wizard-company-step').style.display = 'block';
   } else if (ev.type === "model_install_error") {
     closeWizardSse();
     wizardEl.errorBox.style.display = "block";
@@ -1153,6 +1166,7 @@ document.getElementById('btn-start').addEventListener('click', async () => {
   const settings = {
     llmSampleRate: parseFloat(document.getElementById('sample-rate').value),
     sectionEmbeddings: document.getElementById('section-embeddings').value === 'true',
+    sectorProfileId: document.getElementById('sector-profile').value || 'automotive_de',
   };
   document.getElementById('setup-error').style.display = 'none';
   try {
@@ -1491,6 +1505,52 @@ document.getElementById('btn-retry').addEventListener('click', () => {
   fetchHealth(); showScreen('setup');
 });
 
+async function loadProfiles() {
+  try {
+    const r = await fetch('/api/profiles');
+    const profiles = await r.json();
+    const sel = document.getElementById('sector-profile');
+    sel.innerHTML = '';
+    for (const p of profiles) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label;
+      opt.title = p.description;
+      sel.appendChild(opt);
+    }
+    sel.value = 'automotive_de';
+  } catch (e) {
+    console.warn('Could not load profiles', e);
+  }
+}
+
+function completeWizardSetup() {
+  document.getElementById('wizard-company-step').style.display = 'none';
+  showScreen('setup');
+  if (modelsettingsEl.btnOpen) modelsettingsEl.btnOpen.style.display = "";
+  if (typeof fetchHealth === "function") fetchHealth();
+  if (typeof initTree === "function") initTree('/documents');
+}
+
+async function saveWizardCompany() {
+  const name = document.getElementById('wizard-company-name').value.trim();
+  const aliasRaw = document.getElementById('wizard-company-aliases').value.trim();
+  const aliases = aliasRaw ? aliasRaw.split(',').map(a => a.trim()).filter(Boolean) : [];
+  if (name) {
+    try {
+      await fetch('/api/company', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name, aliases}),
+      });
+    } catch { /* non-fatal */ }
+  }
+  completeWizardSetup();
+}
+
+document.getElementById('btn-wizard-company-save').addEventListener('click', saveWizardCompany);
+document.getElementById('btn-wizard-company-skip').addEventListener('click', completeWizardSetup);
+
 (async () => {
   const ready = await bootstrapSetup();
   if (ready) {
@@ -1499,6 +1559,7 @@ document.getElementById('btn-retry').addEventListener('click', () => {
     fetchHealth();
     initTree('/documents');
   }
+  loadProfiles();
   setInterval(fetchHealth, 10000); // health polling continues either way
 })();
 </script>
