@@ -21,7 +21,7 @@ export async function renderRequirementsLandscape(data: ReportData): Promise<str
   });
 
   const TYPE_COLORS: Record<string, string> = {
-    MUSS: '#d32f2f', SOLL: '#ff6b35', KANN: '#1e88e5', DEKLARATIV: '#43a047', INFORMATIV: '#607d8b',
+    MANDATORY: '#d32f2f', RECOMMENDED: '#ff6b35', PERMITTED: '#1e88e5', DECLARATIVE: '#43a047', INFORMATIVE: '#607d8b',
   };
   const typeLabels = Object.keys(typeCounts);
   const typeData   = Object.values(typeCounts);
@@ -136,7 +136,7 @@ export async function renderRequirementsLandscape(data: ReportData): Promise<str
       var _filesMap  = new Map((_data.files  || []).map(function(f){ return [f.id, f.filename]; }));
       function docName(id){ return _parsedMap.get(id) || _filesMap.get(id) || id; }
 
-      var TYPE_COLORS = {MUSS:'#d32f2f',SOLL:'#ff6b35',KANN:'#1e88e5',DEKLARATIV:'#43a047',INFORMATIV:'#607d8b'};
+      var TYPE_COLORS = {MANDATORY:'#d32f2f',RECOMMENDED:'#ff6b35',PERMITTED:'#1e88e5',DECLARATIVE:'#43a047',INFORMATIVE:'#607d8b'};
       function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
 
       var slice = allReqs.slice(0, LIMIT);

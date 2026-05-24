@@ -73,8 +73,8 @@ export interface ReportData {
   requirements: Array<{
     docId: string;
     sectionHeading: string;
-    type: 'MUSS' | 'SOLL' | 'KANN' | 'INFORMATIV' | 'DEKLARATIV';
-    category: 'Material' | 'Toleranz' | 'Prüfung' | 'Verpackung' | 'Lieferung' | 'Sicherheit' | 'Sonstiges';
+    type: 'MANDATORY' | 'RECOMMENDED' | 'PERMITTED' | 'INFORMATIVE' | 'DECLARATIVE';
+    category: 'Material' | 'Tolerance' | 'Testing' | 'Packaging' | 'Delivery' | 'Safety' | 'Other';
     isSafetyRelevant: boolean;
     hasQuantitativeValue: boolean;
     linkedNorm?: string;

@@ -63,11 +63,11 @@ export const BASIC_REPORT = {
     { text: 'Appendix A', type: 'internal_ref', status: 'resolved' },
   ],
   requirements: [
-    { type: 'MUSS', category: 'Material', safetyFlag: false, count: 42 },
-    { type: 'SOLL', category: 'Prüfung', safetyFlag: false, count: 35 },
-    { type: 'KANN', category: 'Verpackung', safetyFlag: false, count: 28 },
-    { type: 'DEKLARATIV', category: 'Dokumentation', safetyFlag: true, count: 15 },
-    { type: 'INFORMATIV', category: 'Referenz', safetyFlag: false, count: 36 },
+    { type: 'MANDATORY', category: 'Material', safetyFlag: false, count: 42 },
+    { type: 'RECOMMENDED', category: 'Testing', safetyFlag: false, count: 35 },
+    { type: 'PERMITTED', category: 'Packaging', safetyFlag: false, count: 28 },
+    { type: 'DECLARATIVE', category: 'Dokumentation', safetyFlag: true, count: 15 },
+    { type: 'INFORMATIVE', category: 'Referenz', safetyFlag: false, count: 36 },
   ],
   consistencyChecks: {
     parseSuccessRate: { value: 0.857, threshold: 0.8, pass: true },
@@ -127,9 +127,9 @@ export const EDGE_CASE_MIXED_LANGUAGES = {
     { text: 'Unknown Ref', type: 'norm', status: 'unresolved' },
   ],
   requirements: [
-    { type: 'MUSS', category: 'Safety', safetyFlag: true, count: 25 },
-    { type: 'SOLL', category: 'Performance', safetyFlag: false, count: 38 },
-    { type: 'KANN', category: 'Optional', safetyFlag: false, count: 24 },
+    { type: 'MANDATORY', category: 'Safety', safetyFlag: true, count: 25 },
+    { type: 'RECOMMENDED', category: 'Performance', safetyFlag: false, count: 38 },
+    { type: 'PERMITTED', category: 'Optional', safetyFlag: false, count: 24 },
   ],
   consistencyChecks: {
     parseSuccessRate: { value: 0.889, threshold: 0.8, pass: true },

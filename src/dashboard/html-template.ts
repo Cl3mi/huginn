@@ -1461,7 +1461,7 @@ export function generateHtmlTemplate(reportJson: string, bodyContent: string, ch
 
       // ── 6. Requirements ───────────────────────────────────────────────────────
       if(reqs.length){
-        var TC={'MUSS':'#d32f2f','SOLL':'#ff6b35','KANN':'#1e88e5','DEKLARATIV':'#43a047','INFORMATIV':'#607d8b'};
+        var TC={'MANDATORY':'#d32f2f','RECOMMENDED':'#ff6b35','PERMITTED':'#1e88e5','DECLARATIVE':'#43a047','INFORMATIVE':'#607d8b'};
         html += '<div class="modal-section"><h4>Requirements ('+reqs.length+')</h4>';
         html += '<table class="modal-table"><thead><tr><th>Type</th><th>Category</th><th style="text-align:center">Safety</th><th>Linked norm</th><th>Section heading</th></tr></thead><tbody>';
         reqs.forEach(function(r){
