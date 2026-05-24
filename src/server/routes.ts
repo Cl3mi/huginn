@@ -17,6 +17,7 @@ import { logger } from "../utils/logger.ts";
 import { COMPANY_FILE_PATH, loadCompanyIdentity, saveCompanyIdentity } from "../utils/company-identity.ts";
 import type { CompanyIdentity } from "../profiles/types.ts";
 import { PROFILES } from "../profiles/index.ts";
+import { loadDebugSettings, saveDebugSettings, mergeDebugSettings } from "../debug/settings.ts";
 
 type ActivePull = {
   modelId: string;
@@ -39,7 +40,7 @@ let scanState: ScanState = { status: "idle" };
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -395,6 +396,33 @@ function handleGetProfiles(): Response {
   return json(PROFILES.map((p) => ({ id: p.id, label: p.label, description: p.description })));
 }
 
+function handleGetDebugSettings(): Response {
+  return json(loadDebugSettings());
+}
+
+async function handlePatchDebugSettings(req: Request): Promise<Response> {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: "invalid_json" }, 400);
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return json({ error: "body_must_be_object" }, 400);
+  }
+  const patch = body as Record<string, unknown>;
+  // Validate: only boolean values accepted
+  for (const [key, val] of Object.entries(patch)) {
+    if (typeof val !== "boolean") {
+      return json({ error: "invalid_value", field: key, expected: "boolean" }, 400);
+    }
+  }
+  const current = loadDebugSettings();
+  const updated = mergeDebugSettings(current, patch as Partial<import("../debug/settings.ts").DebugSettings>);
+  saveDebugSettings(updated);
+  return json(updated);
+}
+
 export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -417,6 +445,8 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (path === "/api/company" && req.method === "GET") return handleGetCompany();
   if (path === "/api/company" && req.method === "POST") return handleSaveCompany(req);
   if (path === "/api/profiles" && req.method === "GET") return handleGetProfiles();
+  if (path === "/api/debug-settings" && req.method === "GET")   return handleGetDebugSettings();
+  if (path === "/api/debug-settings" && req.method === "PATCH") return handlePatchDebugSettings(req);
 
   if (req.method === "GET") {
     const uiPath = new URL("../ui/index.html", import.meta.url).pathname;
