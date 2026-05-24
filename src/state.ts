@@ -1,6 +1,9 @@
 // Single source of truth passed between all phases.
 // Each phase reads from previous phases' output and appends its own.
 
+import type { SectorProfile, CompanyIdentity } from "./profiles/types.ts";
+import { automotiveDe } from "./profiles/automotive.ts";
+
 export interface FileEntry {
   id: string;                    // sequential, e.g. "doc-001"
   path: string;                  // relative to DOCUMENTS_ROOT
@@ -16,6 +19,7 @@ export interface FileEntry {
   inferredCustomer?: string;
   inferredProject?: string;
   inferredDocumentCategory?: "rfq" | "quotation"; // detected from path segment (e.g. rfq/, quotations/)
+  documentOrigin?: "internal" | "external";   // set by Phase 1/2 via company identity matching
 }
 
 export interface HeadingNode {
@@ -81,12 +85,12 @@ export interface StructuralFingerprint {
 }
 
 export interface RequirementDensityVector {
-  mussPerPage: number;
-  sollPerPage: number;
-  kannPerPage: number;
-  informativPerPage: number;
+  mandatoryPerPage:   number;  // was mussPerPage
+  recommendedPerPage: number;  // was sollPerPage
+  permittedPerPage:   number;  // was kannPerPage
+  informativePerPage: number;  // was informativPerPage
   quantitativeValuesPerPage: number;
-  fikbReferencesPerPage: number; // OEM requirement IDs
+  entityRefPerPage:   number;  // was fikbReferencesPerPage — generic OEM/entity IDs
 }
 
 export interface DocumentFingerprint {
@@ -130,13 +134,13 @@ export interface ExtractedReference {
 export interface ExtractedRequirement {
   docId: string;
   sectionHeading: string;        // which section (heading only)
-  type: "MUSS" | "SOLL" | "KANN" | "INFORMATIV" | "DEKLARATIV";
-  category: "Material" | "Toleranz" | "Prüfung" | "Verpackung" | "Lieferung" | "Sicherheit" | "Sonstiges";
+  type: "MANDATORY" | "RECOMMENDED" | "PERMITTED" | "INFORMATIVE" | "DECLARATIVE";
+  category: "Material" | "Tolerance" | "Testing" | "Packaging" | "Delivery" | "Safety" | "Other";
   hasQuantitativeValue: boolean;
   quantitativeValueCount?: number;
   quantitativeUnitTypes?: string[];  // unit type tokens, e.g. ["mm", "°C"] — no spec values
   linkedNorm?: string;
-  linkedFikb?: string;           // FIKB/KB_Master number if present
+  linkedEntityRef?: string;      // OEM/entity requirement ID if present (e.g. FIKB, KB_Master)
   isSafetyRelevant: boolean;
   source?: "regex" | "llm_recovery" | "regex_unconfirmed";
 }
@@ -279,6 +283,8 @@ export interface ScannerState {
   startedAt: Date;
   completedAt?: Date;
   documentsRoot: string;
+  sectorProfile: SectorProfile;
+  companyIdentity: CompanyIdentity | null;
   files: FileEntry[];
   parsed: ParsedDocument[];
   fingerprints: DocumentFingerprint[];
@@ -311,11 +317,18 @@ export interface ScannerState {
   };
 }
 
-export function createInitialState(scanId: string, documentsRoot: string): ScannerState {
+export function createInitialState(
+  scanId: string,
+  documentsRoot: string,
+  profile: SectorProfile = automotiveDe,
+  companyIdentity: CompanyIdentity | null = null,
+): ScannerState {
   return {
     scanId,
     startedAt: new Date(),
     documentsRoot,
+    sectorProfile: profile,
+    companyIdentity,
     files: [],
     parsed: [],
     fingerprints: [],
