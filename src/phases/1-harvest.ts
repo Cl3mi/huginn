@@ -7,6 +7,7 @@ import type { ScannerState, FileEntry } from "../state.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
+import { matchesCompany } from "../utils/company-identity.ts";
 
 // OEM tokens in path segments — containing segment is customer, next segment is project
 const OEM_TOKENS = [
@@ -170,6 +171,11 @@ export async function runHarvest(state: ScannerState): Promise<void> {
 
     const inferredDocumentCategory = inferDocumentCategoryFromPath(dirSegments);
 
+    const documentOrigin: "internal" | "external" | undefined =
+      state.companyIdentity
+        ? matchesCompany(relativePath, state.companyIdentity) ? "internal" : "external"
+        : undefined;
+
     docIndex++;
     const id = `doc-${String(docIndex).padStart(3, "0")}`;
 
@@ -188,6 +194,7 @@ export async function runHarvest(state: ScannerState): Promise<void> {
       ...(inferredCustomer ? { inferredCustomer } : {}),
       ...(inferredProject ? { inferredProject } : {}),
       ...(inferredDocumentCategory ? { inferredDocumentCategory } : {}),
+      ...(documentOrigin !== undefined ? { documentOrigin } : {}),
     };
 
     state.files.push(entry);
