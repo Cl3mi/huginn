@@ -424,6 +424,46 @@ function deriveRequirementReliability(
   return REQUIREMENT_RELIABLE_TYPES.has(detectedDocType);
 }
 
+// ── Debug helpers (no-op when state.decisionAudit is undefined) ──────────────
+
+function buildDocTypeDebugSignals(
+  filename: string,
+  headings: string[],
+  sample: string,
+): Record<string, number | boolean> {
+  const fn = filename.toLowerCase();
+  const content = [...headings.map((h) => h.toLowerCase()), sample.toLowerCase()].join(" ");
+  return {
+    headingCount: headings.length,
+    filenameMatchFired:
+      /\bfmea\b|\baudit\b|\bsrs\b|\birs\b|\blastenheft\b|\btestbericht\b|\babweichliste\b|\bpruefspec\b|\bprüfspec\b|\bmilestones?\b|\brisk\b|\bplanning\b|\bangebot\b|\b8d\b|\bempb\b|\bkontrollplan\b|\bserienfreigabe\b|\breklamation\b|\barbeitsanweisung\b|\bprotokoll\b|\bhandbuch\b|\bsla\b|\blessons?\b/i.test(fn),
+    hasFmeaSignal:   /\bfmea\b/i.test(fn) || /\bfmea\b/i.test(content),
+    hasLastenheftSignal: /\b(srs|irs|lastenheft|anforderung|requirement)\b/i.test(fn) || /lastenheft|anforderung|requirement/i.test(content),
+    hasTestberichtSignal: /testbericht|ergebnisbericht|prüfbericht/i.test(fn) || /testbericht|ergebnisbericht/i.test(content),
+    hasAbweichlisteSignal: /abweichliste/i.test(fn) || /abweichliste|abweichungsliste/i.test(content),
+    hasNormSignal: /iso\s*\d|din\s*\d|en\s*\d|\bnorm\b/i.test(content),
+  };
+}
+
+function buildOemDebugSignals(
+  sample: string,
+  headings: string[],
+  pathSegments: string[],
+): Record<string, boolean> {
+  const text = [sample, ...headings, pathSegments.join(" ")].join(" ");
+  const hasFikb = PATTERNS.fikb.test(text); PATTERNS.fikb.lastIndex = 0;
+  const hasKbMaster = PATTERNS.kbMaster.test(text); PATTERNS.kbMaster.lastIndex = 0;
+  const hasQv = PATTERNS.qualitySpec.test(text); PATTERNS.qualitySpec.lastIndex = 0;
+  return {
+    hasFikbPattern: hasFikb,
+    hasKbMasterPattern: hasKbMaster,
+    hasQvPattern: hasQv,
+    hasMercedesKeyword: /\bmerced(es|benz)\b/i.test(text),
+    hasBmwKeyword: /\bbmw\b/i.test(text),
+    hasAudiKeyword: /\baudi\b/i.test(text),
+  };
+}
+
 export async function runParse(state: ScannerState): Promise<void> {
   const t = logger.phaseStart("2-parse");
   let tikaUnavailable = false;
@@ -459,6 +499,29 @@ export async function runParse(state: ScannerState): Promise<void> {
     }
 
     state.parsed.push(parsed);
+    if (state.decisionAudit !== undefined) {
+      const sample = (parsed.textContent ?? "").slice(0, 2000);
+      const headingTexts = parsed.headings.map((h) => h.text);
+      state.decisionAudit.set(parsed.id, {
+        docId: parsed.id,
+        docTypeSignals: {
+          ...buildDocTypeDebugSignals(parsed.filename, headingTexts, sample),
+          ...buildOemDebugSignals(sample, headingTexts, parsed.pathSegments),
+        },
+        docTypeChosen: parsed.detectedDocType ?? "other",
+        oemDetected: parsed.detectedOem ?? "unknown",
+        oemSource: parsed.oemSource ?? "folder",
+        chunkStrategyChosen: parsed.recommendedChunkStrategy,
+        chunkStrategyConfidence: parsed.chunkStrategyReasoning.confidence,
+        chunkStrategySignals: {
+          headingCount: parsed.chunkStrategyReasoning.signals.headingCount,
+          headingDepth: parsed.chunkStrategyReasoning.signals.headingDepth,
+          tableCount: parsed.chunkStrategyReasoning.signals.tableCount,
+          isXlsx: parsed.chunkStrategyReasoning.signals.isXlsx,
+          pdfClassification: parsed.chunkStrategyReasoning.signals.pdfClassification,
+        },
+      });
+    }
     const projection = await projectDocument(parsed, projectionAcc);
     state.ingestionProjections.push(projection);
   }
