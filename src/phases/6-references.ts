@@ -1,4 +1,5 @@
 import type { ScannerState, ExtractedReference } from "../state.ts";
+import type { SectorProfile } from "../profiles/types.ts";
 import { logger } from "../utils/logger.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
 import { complete, parseJsonFromLlm } from "../llm/ollama.ts";
@@ -10,73 +11,12 @@ function clampString(s: string): string {
   return s.slice(0, MAX_RAW_REF_LENGTH);
 }
 
-// Static lookup for common automotive norms. Resolution order: static table → fuzzy match → LLM
-const AUTOMOTIVE_NORM_CANONICAL: Record<string, string> = {
-  // ISO quality / management
-  "ISO 9001": "ISO 9001:2015",
-  "ISO 9001:2015": "ISO 9001:2015",
-  "DIN EN ISO 9001": "ISO 9001:2015",
-  "EN ISO 9001": "ISO 9001:2015",
-  "ISO 14001": "ISO 14001:2015",
-  "ISO 14001:2015": "ISO 14001:2015",
-  "ISO 45001": "ISO 45001:2018",
-  "ISO 45001:2018": "ISO 45001:2018",
-  // Automotive IATF
-  "IATF 16949": "IATF 16949:2016",
-  "IATF 16949:2016": "IATF 16949:2016",
-  "ISO/TS 16949": "IATF 16949:2016",
-  "ISO TS 16949": "IATF 16949:2016",
-  "TS 16949": "IATF 16949:2016",
-  // Functional safety
-  "ISO 26262": "ISO 26262:2018",
-  "ISO 26262:2018": "ISO 26262:2018",
-  "ISO 26262-2": "ISO 26262-2:2018",
-  "IEC 61508": "IEC 61508:2010",
-  "IEC 61508:2010": "IEC 61508:2010",
-  "ISO/IEC 61508": "IEC 61508:2010",
-  "ISO 13849": "ISO 13849-1:2015",
-  "ISO 13849-1": "ISO 13849-1:2015",
-  // VDA
-  "VDA 6.3": "VDA 6.3:2016",
-  "VDA 6.3:2016": "VDA 6.3:2016",
-  "VDA 6.1": "VDA 6.1:2016",
-  "VDA 6.5": "VDA 6.5:2012",
-  "VDA 4": "VDA 4:2020",
-  "VDA 4.1": "VDA 4.1",
-  "VDA 4.2": "VDA 4.2",
-  "VDA 2": "VDA 2:2020",
-  "VDA 19": "VDA 19:2010",
-  "VDA 19.1": "VDA 19.1:2010",
-  // ASPICE
-  "ASPICE": "Automotive SPICE PAM 3.1",
-  "Automotive SPICE": "Automotive SPICE PAM 3.1",
-  "A-SPICE": "Automotive SPICE PAM 3.1",
-  // AIAG
-  "AIAG FMEA": "AIAG & VDA FMEA Handbook 1st Edition",
-  "AIAG MSA": "AIAG MSA 4th Edition",
-  "AIAG APQP": "AIAG APQP 2nd Edition",
-  "AIAG PPAP": "AIAG PPAP 4th Edition",
-  // Material / testing
-  "ISO 10204": "ISO 10204:2004",
-  "DIN EN 10204": "ISO 10204:2004",
-  "EN 10204": "ISO 10204:2004",
-  "DIN EN 1090": "DIN EN 1090-2:2018",
-  "ISO 1101": "ISO 1101:2017",
-  "ISO 286": "ISO 286-1:2010",
-  // Environmental
-  "REACH": "REACH Regulation (EC) 1907/2006",
-  "RoHS": "RoHS Directive 2011/65/EU",
-};
-
-function staticNormLookup(rawNorm: string): string | undefined {
+// Static lookup using profile's normCanonical table. Resolution order: static table → fuzzy match → LLM
+function staticNormLookup(rawNorm: string, profile: SectorProfile): string | undefined {
   const normalized = rawNorm.trim();
-  // Exact match
-  if (AUTOMOTIVE_NORM_CANONICAL[normalized]) return AUTOMOTIVE_NORM_CANONICAL[normalized];
-  // Match by base part (strip trailing colon+year variants from lookup key)
-  for (const [key, canonical] of Object.entries(AUTOMOTIVE_NORM_CANONICAL)) {
-    if (normalized.toLowerCase().startsWith(key.toLowerCase())) {
-      return canonical;
-    }
+  if (profile.normCanonical[normalized]) return profile.normCanonical[normalized];
+  for (const [key, canonical] of Object.entries(profile.normCanonical)) {
+    if (normalized.toLowerCase().startsWith(key.toLowerCase())) return canonical;
   }
   return undefined;
 }
@@ -134,12 +74,20 @@ interface RawRefExtractions {
 // exclude norm prefixes from intraCorpusId results (ISO-xxx-yyy patterns are norms, not doc IDs)
 const NORM_PREFIXES = new Set(["ISO", "DIN", "EN", "VDA", "IATF", "IEC"]);
 
-function extractRawRefs(text: string): RawRefExtractions {
+function extractRawRefs(text: string, profile: SectorProfile): RawRefExtractions {
+  const normPat = new RegExp(profile.normPattern.source, "gi");
+  const entityMatches: Record<string, string[]> = {};
+  if (profile.entityIdPatterns) {
+    for (const { pattern, type } of profile.entityIdPatterns) {
+      const pat = new RegExp(pattern.source, "gi");
+      entityMatches[type] = findAllMatches(pat, text).map(clampString);
+    }
+  }
   return {
-    norms: findAllMatches(PATTERNS.norm, text).map(clampString),
-    qualitySpecs: findAllMatches(PATTERNS.qualitySpec, text).map(clampString),
-    fikbs: findAllMatches(PATTERNS.fikb, text).map(clampString),
-    kbMasters: findAllMatches(PATTERNS.kbMaster, text).map(clampString),
+    norms: findAllMatches(normPat, text).map(clampString),
+    qualitySpecs: entityMatches["quality_spec"] ?? [],
+    fikbs: entityMatches["fikb"] ?? [],
+    kbMasters: entityMatches["kb_master"] ?? [],
     chapterRefs: findAllMatches(PATTERNS.chapterRef, text).map(clampString),
     docRefs: findAllMatches(PATTERNS.docRef, text).map(clampString),
     versionMarkers: findAllMatches(PATTERNS.versionMarker, text).map(clampString),
@@ -156,7 +104,11 @@ interface NormEntry {
 }
 
 // Normalize norms — static lookup first ("certain"), LLM fallback ("uncertain")
-async function normalizeLlm(rawNorms: string[], ollamaAvailable: boolean): Promise<Map<string, NormEntry>> {
+async function normalizeLlm(
+  rawNorms: string[],
+  ollamaAvailable: boolean,
+  profile: SectorProfile,
+): Promise<Map<string, NormEntry>> {
   const normMap = new Map<string, NormEntry>();
   if (rawNorms.length === 0) return normMap;
 
@@ -166,7 +118,7 @@ async function normalizeLlm(rawNorms: string[], ollamaAvailable: boolean): Promi
   const needsLlm: string[] = [];
   let staticHits = 0;
   for (const norm of unique) {
-    const canonical = staticNormLookup(norm);
+    const canonical = staticNormLookup(norm, profile);
     if (canonical) {
       normMap.set(norm, { normalized: canonical, confidence: "certain" });
       staticHits++;
@@ -284,12 +236,12 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
     const text = doc.textContent ?? "";
     if (!text) continue;
 
-    const refs = extractRawRefs(text);
+    const refs = extractRawRefs(text, state.sectorProfile);
     docRawRefs.set(doc.id, refs);
     allRawNorms.push(...refs.norms, ...refs.qualitySpecs);
   }
 
-  const normMap = await normalizeLlm(allRawNorms, ollamaAvailable);
+  const normMap = await normalizeLlm(allRawNorms, ollamaAvailable, state.sectorProfile);
   const allDocs = state.parsed;
   const graphMap = new Map<string, string[]>();
 
@@ -325,11 +277,17 @@ export async function runReferences(state: ScannerState, ollamaAvailable: boolea
       }
     };
 
-    pushRef("iso_norm", refs.norms.filter((n) => /^\s*ISO/i.test(n)));
-    pushRef("din_norm", refs.norms.filter((n) => /^\s*DIN/i.test(n)));
-    pushRef("en_norm", refs.norms.filter((n) => /^\s*EN/i.test(n)));
-    pushRef("vda_norm", refs.norms.filter((n) => /^\s*VDA/i.test(n)));
-    pushRef("iatf_norm", refs.norms.filter((n) => /^\s*IATF/i.test(n)));
+    const classifier = state.sectorProfile.classifyNormType ?? (() => "iso_norm" as const);
+    const normsByType = new Map<ExtractedReference["type"], string[]>();
+    for (const rawNorm of refs.norms) {
+      const t = classifier(rawNorm);
+      const arr = normsByType.get(t) ?? [];
+      arr.push(rawNorm);
+      normsByType.set(t, arr);
+    }
+    for (const [type, norms] of normsByType) {
+      pushRef(type, norms);
+    }
     pushRef("quality_spec", refs.qualitySpecs);
     pushRef("fikb", refs.fikbs);
     pushRef("kb_master", refs.kbMasters);
