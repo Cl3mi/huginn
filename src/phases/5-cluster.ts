@@ -236,6 +236,26 @@ export async function runCluster(state: ScannerState): Promise<void> {
         state.versionPairs.push(pair);
         if (pair.confidence === "HIGH") highConfidencePairs++;
       }
+
+      // Debug: record signal breakdown for MEDIUM (≥5) and HIGH pairs
+      if (pair.score >= 5 && state.decisionAudit !== undefined) {
+        const contribution = {
+          partnerDocId: docB.id,
+          score: pair.score,
+          filenameNormalizedSimilarity: pair.signals.filenameNormalizedSimilarity,
+          headingMinHashJaccard: pair.signals.headingMinHashJaccard,
+          semanticCosineSimilarity: pair.signals.semanticCosineSimilarity,
+          structuralMatch: pair.signals.structuralMatch,
+          sameDirectory: pair.signals.sameDirectory,
+        };
+        const recA = state.decisionAudit.get(docA.id);
+        if (recA !== undefined) {
+          if (recA.versionPairContributions === undefined) {
+            recA.versionPairContributions = [];
+          }
+          recA.versionPairContributions.push(contribution);
+        }
+      }
     }
   }
 
