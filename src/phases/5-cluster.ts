@@ -117,8 +117,8 @@ function scoreVersionPair(
     likelyNewer = new Date(docA.dateSignals.bestDate) > new Date(docB.dateSignals.bestDate) ? "A" : "B";
   } else {
     // Fallback: more requirement density = likely newer
-    const densA = fpA.requirementDensity.mussPerPage + fpA.requirementDensity.sollPerPage;
-    const densB = fpB.requirementDensity.mussPerPage + fpB.requirementDensity.sollPerPage;
+    const densA = fpA.requirementDensity.mandatoryPerPage + fpA.requirementDensity.recommendedPerPage;
+    const densB = fpB.requirementDensity.mandatoryPerPage + fpB.requirementDensity.recommendedPerPage;
     if (Math.abs(densA - densB) > 0.5) likelyNewer = densA > densB ? "A" : "B";
   }
 
