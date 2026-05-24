@@ -3,18 +3,20 @@ import { dirname } from "path";
 import { CATALOG } from "../llm/model-catalog.ts";
 import type { DetectedHardware, RankedEntry } from "../llm/model-fit.ts";
 import { healthState } from "./health-state.ts";
+import type { CompanyIdentity } from "../profiles/types.ts";
 
 export type SetupState = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   installedChatModel: string | null;
   installedAt: string | null;
   fitReportAtInstall: {
     detected: DetectedHardware;
     candidates: RankedEntry[];
   } | null;
+  companyIdentity: CompanyIdentity | null;
 };
 
-const CURRENT_SCHEMA_VERSION = 1;
+const CURRENT_SCHEMA_VERSION = 2;
 
 // Inside the scanner container the default lives in the writable layer at
 // /app/state/setup.json (no bind mount). Dev runs override via SETUP_FILE_PATH.
@@ -70,6 +72,7 @@ export async function autoRecoverIfPossible(
     installedChatModel: largest.id,
     installedAt: new Date().toISOString(),
     fitReportAtInstall: null,
+    companyIdentity: null,
   };
   saveSetupState(filePath, state);
   return state;

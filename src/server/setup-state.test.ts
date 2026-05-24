@@ -27,10 +27,11 @@ describe("loadSetupState / saveSetupState", () => {
 
   test("round-trips a valid state", () => {
     const state: SetupState = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       installedChatModel: "llama3.1:8b",
       installedAt: "2026-05-21T10:00:00.000Z",
       fitReportAtInstall: null,
+      companyIdentity: null,
     };
     saveSetupState(FILE, state);
     expect(existsSync(FILE)).toBe(true);
