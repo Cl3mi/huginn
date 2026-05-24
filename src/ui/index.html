@@ -158,7 +158,7 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
   </div>
   <div class="topbar-sep"></div>
   <span class="topbar-sub">Document Intelligence Scanner</span>
-  <button class="btn-secondary" id="btn-open-modelsettings" style="display:none;font-size:.75rem;padding:.3rem .6rem;margin-left:auto;">Model Settings</button>
+  <button class="btn-secondary" id="btn-open-modelsettings" style="display:none;font-size:.75rem;padding:.3rem .6rem;margin-left:auto;">Settings</button>
   <div class="topbar-status" id="topbar-status">
     <div class="dot" id="topbar-dot" style="background:var(--text-muted);"></div>
     <span id="topbar-label">Checking...</span>
@@ -219,10 +219,26 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
   <div class="page" style="max-width:780px;">
     <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;">
       <div>
-        <div class="page-title">Model Settings</div>
-        <div class="page-subtitle" id="modelsettings-subtitle">Manage the installed chat model.</div>
+        <div class="page-title">Settings</div>
+        <div class="page-subtitle" id="modelsettings-subtitle">Company identity and installed chat model.</div>
       </div>
       <button class="btn-secondary" id="btn-close-modelsettings">Back</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Company Identity</div>
+      <div class="field" style="margin-bottom:.75rem;">
+        <label>Company name</label>
+        <input type="text" class="path-input" id="settings-company-name" placeholder="e.g. Helios Automotive AG" style="width:100%;margin-top:.35rem;">
+      </div>
+      <div class="field" style="margin-bottom:.75rem;">
+        <label>Aliases <span class="field-hint" style="font-weight:400;">(comma-separated, optional)</span></label>
+        <input type="text" class="path-input" id="settings-company-aliases" placeholder="e.g. HAG" style="width:100%;margin-top:.35rem;">
+      </div>
+      <div style="display:flex;align-items:center;gap:.75rem;">
+        <button class="btn-primary" id="btn-settings-company-save">Save</button>
+        <span id="settings-company-status" style="font-size:.8rem;color:var(--text-muted);"></span>
+      </div>
     </div>
 
     <div class="card">
@@ -292,7 +308,7 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
             <div class="field">
               <label>Chat model</label>
               <div class="field-hint" id="active-chat-model-display" style="font-family:var(--font-mono);color:var(--text-primary);padding:.4rem 0;">—</div>
-              <div class="field-hint">Manage in <a href="#" id="link-open-modelsettings" style="color:var(--accent);text-decoration:none;">Model Settings</a></div>
+              <div class="field-hint">Manage in <a href="#" id="link-open-modelsettings" style="color:var(--accent);text-decoration:none;">Settings</a></div>
             </div>
             <div class="field">
               <label>Embed model</label>
@@ -789,6 +805,12 @@ async function openModelSettings() {
   modelsettingsEl.progress.style.display = "none";
   ensureModelSettingsSse();
   await refreshModelSettings();
+  try {
+    const company = await fetch("/api/company").then((r) => r.json());
+    document.getElementById("settings-company-name").value = company.name || "";
+    document.getElementById("settings-company-aliases").value = (company.aliases || []).join(", ");
+    document.getElementById("settings-company-status").textContent = "";
+  } catch { /* non-fatal */ }
 }
 
 async function refreshModelSettings() {
@@ -924,6 +946,32 @@ const linkOpenSettings = document.getElementById("link-open-modelsettings");
 if (linkOpenSettings) linkOpenSettings.addEventListener("click", (e) => {
   e.preventDefault();
   openModelSettings();
+});
+
+document.getElementById("btn-settings-company-save").addEventListener("click", async () => {
+  const name = document.getElementById("settings-company-name").value.trim();
+  const aliasRaw = document.getElementById("settings-company-aliases").value.trim();
+  const aliases = aliasRaw ? aliasRaw.split(",").map((a) => a.trim()).filter(Boolean) : [];
+  const statusEl = document.getElementById("settings-company-status");
+  if (!name) { statusEl.style.color = "var(--error)"; statusEl.textContent = "Company name is required."; return; }
+  try {
+    const res = await fetch("/api/company", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, aliases }),
+    });
+    if (res.ok) {
+      statusEl.style.color = "var(--success, #43a047)";
+      statusEl.textContent = "Saved.";
+    } else {
+      const err = await res.json().catch(() => ({}));
+      statusEl.style.color = "var(--error)";
+      statusEl.textContent = err.error || "Save failed.";
+    }
+  } catch (e) {
+    statusEl.style.color = "var(--error)";
+    statusEl.textContent = "Network error.";
+  }
 });
 
 async function fetchHealth() {
