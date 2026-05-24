@@ -14,6 +14,9 @@ import { probeHardware, rankCatalog } from "../llm/model-fit.ts";
 import { pullModel, type PullController } from "../llm/model-installer.ts";
 import { setupHolder, applySetupState } from "./setup-state.ts";
 import { logger } from "../utils/logger.ts";
+import { COMPANY_FILE_PATH, loadCompanyIdentity, saveCompanyIdentity } from "../utils/company-identity.ts";
+import type { CompanyIdentity } from "../profiles/types.ts";
+import { PROFILES } from "../profiles/index.ts";
 
 type ActivePull = {
   modelId: string;
@@ -88,6 +91,7 @@ async function handleStartScan(req: Request): Promise<Response> {
     chatModel: body.settings?.chatModel || CONFIG.ollamaChatModel,
     llmSampleRate: body.settings?.llmSampleRate ?? CONFIG.llmSampleRate,
     sectionEmbeddings: body.settings?.sectionEmbeddings ?? false,
+    sectorProfileId: body.settings?.sectorProfileId ?? "automotive_de",
   };
 
   const safeRoot = resolve(CONFIG.documentsRoot);
@@ -323,10 +327,11 @@ async function handleSetupInstall(req: Request): Promise<Response> {
       tracker.lastEvent = "complete";
       try {
         applySetupState({
-          schemaVersion: 1,
+          schemaVersion: 2,
           installedChatModel: modelId,
           installedAt: new Date().toISOString(),
           fitReportAtInstall: null,
+          companyIdentity: null,
         });
       } catch (e) {
         tracker.lastEvent = "error";
@@ -362,6 +367,34 @@ function handleSetupCancel(): Response {
   return json({ status: "cancelled", modelId: activePull.modelId }, 200);
 }
 
+function handleGetCompany(): Response {
+  const identity = loadCompanyIdentity(COMPANY_FILE_PATH);
+  return json(identity ?? { name: "", aliases: [] });
+}
+
+async function handleSaveCompany(req: Request): Promise<Response> {
+  let body: Partial<CompanyIdentity>;
+  try { body = await req.json() as Partial<CompanyIdentity>; } catch { return json({ error: "Invalid JSON" }, 400); }
+  if (typeof body.name !== "string" || body.name.trim().length === 0) {
+    return json({ error: "name is required" }, 400);
+  }
+  const identity: CompanyIdentity = {
+    name: body.name.trim().slice(0, 120),
+    aliases: Array.isArray(body.aliases)
+      ? body.aliases.filter((a): a is string => typeof a === "string").map((a) => a.trim().slice(0, 80)).slice(0, 10)
+      : [],
+  };
+  saveCompanyIdentity(COMPANY_FILE_PATH, identity);
+  if (setupHolder.current) {
+    setupHolder.current = { ...setupHolder.current, companyIdentity: identity };
+  }
+  return json({ ok: true });
+}
+
+function handleGetProfiles(): Response {
+  return json(PROFILES.map((p) => ({ id: p.id, label: p.label, description: p.description })));
+}
+
 export async function handleRequest(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const path = url.pathname;
@@ -380,6 +413,10 @@ export async function handleRequest(req: Request): Promise<Response> {
 
   const reportMatch = path.match(/^\/api\/reports\/(.+)$/);
   if (reportMatch && req.method === "GET") return handleReportDownload(reportMatch[1]!);
+
+  if (path === "/api/company" && req.method === "GET") return handleGetCompany();
+  if (path === "/api/company" && req.method === "POST") return handleSaveCompany(req);
+  if (path === "/api/profiles" && req.method === "GET") return handleGetProfiles();
 
   if (req.method === "GET") {
     const uiPath = new URL("../ui/index.html", import.meta.url).pathname;
