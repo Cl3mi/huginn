@@ -1,5 +1,7 @@
 import { createInitialState } from "./state.ts";
 import { CONFIG } from "./config.ts";
+import { resolveProfile } from "./profiles/index.ts";
+import { COMPANY_FILE_PATH, loadCompanyIdentity } from "./utils/company-identity.ts";
 import { logger, setPhase, setProgressCallback } from "./utils/logger.ts";
 import { stat } from "fs/promises";
 import { checkTikaHealth } from "./parsers/tika.ts";
@@ -22,6 +24,7 @@ export interface ScanSettings {
   chatModel: string;
   llmSampleRate: number;
   sectionEmbeddings: boolean;
+  sectorProfileId: string;  // default: "automotive_de"
 }
 
 export interface PipelineConfig {
@@ -45,6 +48,9 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
   process.env["LLM_SAMPLE_RATE"] = String(settings.llmSampleRate);
   process.env["SECTION_EMBEDDINGS"] = settings.sectionEmbeddings ? "1" : "0";
 
+  const profile = resolveProfile(settings.sectorProfileId);
+  const companyIdentity = loadCompanyIdentity(COMPANY_FILE_PATH);
+
   if (onProgress) {
     setProgressCallback((raw) => onProgress(raw as SseEvent));
   }
@@ -63,7 +69,7 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
 
   const { ok: ollamaOk } = await checkOllamaHealth();
 
-  const state = createInitialState(scanId, folder);
+  const state = createInitialState(scanId, folder, profile, companyIdentity);
 
   const phases: Array<{ name: string; fn: () => Promise<void>; idx: number }> = [
     { name: "1-harvest",      fn: () => runHarvest(state),                idx: 0 },
