@@ -9,6 +9,7 @@ import { parseWithTika } from "../parsers/tika.ts";
 import { parseWithOfficeParser } from "../parsers/officeparser.ts";
 import { compareParserResults } from "../parsers/parser-compare.ts";
 import { ProjectionAccumulator, projectDocument } from "./3-projection.ts";
+import { matchesCompany } from "../utils/company-identity.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -473,6 +474,17 @@ export async function runParse(state: ScannerState): Promise<void> {
   for (const d of state.parsed) {
     const t = d.detectedDocType ?? "unknown";
     byType[t] = (byType[t] ?? 0) + 1;
+  }
+
+  if (state.companyIdentity) {
+    for (const doc of state.parsed) {
+      if (doc.documentOrigin !== undefined) continue;  // already set by harvest
+      const sample = (doc.textContent ?? "").slice(0, 2000);
+      if (sample.length === 0) continue;
+      doc.documentOrigin = matchesCompany(sample, state.companyIdentity)
+        ? "internal"
+        : "external";
+    }
   }
 
   logger.phaseEnd("2-parse", t, {
