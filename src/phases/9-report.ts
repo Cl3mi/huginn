@@ -5,6 +5,7 @@ import type { ScannerState } from "../state.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { runNarrative } from "./9-narrative.ts";
+import { writeDebugReport } from "../debug/report.ts";
 
 const writeFileAsync = promisify(writeFile);
 
@@ -861,7 +862,15 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
     logger.warn("Markdown report generation failed — skipping (JSON report is safe)", { error: String(mdErr) });
   }
 
-  logger.phaseEnd("9-report", t, { jsonPath, mdPath });
+  let debugPath: string | null = null;
+  try {
+    debugPath = writeDebugReport(state, timestamp);
+    if (debugPath) logger.info("Debug report written", { path: debugPath });
+  } catch (debugErr) {
+    logger.warn("Debug report generation failed — skipping", { error: String(debugErr) });
+  }
+
+  logger.phaseEnd("9-report", t, { jsonPath, mdPath, ...(debugPath ? { debugPath } : {}) });
 
   // Narrative report (additive — does not affect JSON/human.md output)
   try {
