@@ -1,7 +1,7 @@
 // src/debug/report.ts
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
-import type { ScannerState } from "../state.ts";
+import type { ScannerState, ExtractedReference } from "../state.ts";
 import type { PatternCoverageEntry, ZeroOutputEntry } from "./types.ts";
 import { CONFIG } from "../config.ts";
 
@@ -43,13 +43,11 @@ function sanitizeDebugReport(obj: unknown, path = "root"): void {
   }
 }
 
-type RefType = "iso_norm" | "din_norm" | "en_norm" | "vda_norm" | "iatf_norm" | "quality_spec" | "fikb" | "kb_master" | "chapter_ref" | "doc_ref";
-
 function computePatternCoverage(state: ScannerState): PatternCoverageEntry[] {
   const entries: PatternCoverageEntry[] = [];
 
   // Reference patterns
-  const refPatterns: Array<{ name: string; types: RefType[] }> = [
+  const refPatterns: Array<{ name: string; types: ExtractedReference["type"][] }> = [
     { name: "NORM", types: ["iso_norm", "din_norm", "en_norm", "vda_norm", "iatf_norm"] },
     { name: "QUALITY_SPEC", types: ["quality_spec"] },
     { name: "FIKB", types: ["fikb"] },
@@ -98,23 +96,23 @@ function computeZeroOutputEntries(state: ScannerState): ZeroOutputEntry[] {
   for (const r of state.references) {
     refCountByDoc.set(r.docId, (refCountByDoc.get(r.docId) ?? 0) + 1);
   }
+  const projById = new Map(state.ingestionProjections.map((p) => [p.docId, p]));
 
   const entries: ZeroOutputEntry[] = [];
   for (const doc of state.parsed) {
     const reqCount = reqCountByDoc.get(doc.id) ?? 0;
     const refCount = refCountByDoc.get(doc.id) ?? 0;
-    const proj = state.ingestionProjections.find((p) => p.docId === doc.id);
+    const proj = projById.get(doc.id);
     const retentionRate = proj?.tokenRetentionRate ?? 0;
 
     const isInteresting = (reqCount === 0 && refCount === 0) || retentionRate < 0.10;
     if (!isInteresting) continue;
 
-    let likelyCause: ZeroOutputEntry["likelyCause"];
-    if (!doc.parseSuccess)                                    likelyCause = "parse_failure";
-    else if (doc.pdfClassification === "fully_scanned")       likelyCause = "scanned_pdf";
-    else if (WRONG_DOC_TYPES.has(doc.detectedDocType ?? "")) likelyCause = "wrong_doc_type";
-    else if (doc.parseSuccess)                                likelyCause = "regex_miss";
-    else                                                      likelyCause = "unknown";
+    const likelyCause: ZeroOutputEntry["likelyCause"] =
+      !doc.parseSuccess                                  ? "parse_failure"
+      : doc.pdfClassification === "fully_scanned"        ? "scanned_pdf"
+      : WRONG_DOC_TYPES.has(doc.detectedDocType ?? "")   ? "wrong_doc_type"
+      : "regex_miss";
 
     entries.push({
       docId: doc.id,
