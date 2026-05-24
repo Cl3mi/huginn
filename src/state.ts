@@ -3,6 +3,7 @@
 
 import type { SectorProfile, CompanyIdentity } from "./profiles/types.ts";
 import { automotiveDe } from "./profiles/automotive.ts";
+import type { DecisionRecord, PatternCoverageEntry, LlmSampleRecord, ZeroOutputEntry } from "./debug/types.ts";
 
 export interface FileEntry {
   id: string;                    // sequential, e.g. "doc-001"
@@ -315,6 +316,11 @@ export interface ScannerState {
     projectNames: string[];
     documentCategories: string[]; // e.g. ["rfq", "quotation"]
   };
+  // Optional debug fields — undefined = category disabled for this scan
+  decisionAudit?: Map<string, DecisionRecord>;
+  patternCoverage?: PatternCoverageEntry[];
+  llmTrace?: LlmSampleRecord[];
+  zeroOutputDocs?: ZeroOutputEntry[];
 }
 
 export function createInitialState(

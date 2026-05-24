@@ -3,6 +3,7 @@ import { CONFIG } from "./config.ts";
 import { resolveProfile } from "./profiles/index.ts";
 import { COMPANY_FILE_PATH, loadCompanyIdentity } from "./utils/company-identity.ts";
 import { logger, setPhase, setProgressCallback } from "./utils/logger.ts";
+import { loadDebugSettings } from "./debug/settings.ts";
 import { stat } from "fs/promises";
 import { checkTikaHealth } from "./parsers/tika.ts";
 import { checkOllamaHealth } from "./llm/ollama.ts";
@@ -69,7 +70,14 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
 
   const { ok: ollamaOk } = await checkOllamaHealth();
 
+  const debugSettings = loadDebugSettings();
   const state = createInitialState(scanId, folder, profile, companyIdentity);
+  if (debugSettings.enabled) {
+    if (debugSettings.decisionAudit)   state.decisionAudit  = new Map();
+    if (debugSettings.patternCoverage) state.patternCoverage = [];
+    if (debugSettings.llmTrace)        state.llmTrace        = [];
+    if (debugSettings.zeroOutputDocs)  state.zeroOutputDocs  = [];
+  }
 
   const phases: Array<{ name: string; fn: () => Promise<void>; idx: number }> = [
     { name: "1-harvest",      fn: () => runHarvest(state),                idx: 0 },
