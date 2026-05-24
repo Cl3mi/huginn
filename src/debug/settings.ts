@@ -1,5 +1,5 @@
 // src/debug/settings.ts
-import { readFileSync, writeFileSync, mkdirSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
 import { CONFIG } from "../config.ts";
 
@@ -24,8 +24,10 @@ function settingsPath(): string {
 }
 
 export function loadDebugSettings(): DebugSettings {
+  const path = settingsPath();
+  if (!existsSync(path)) return { ...DEFAULT };
   try {
-    const raw = readFileSync(settingsPath(), "utf-8");
+    const raw = readFileSync(path, "utf-8");
     const parsed = JSON.parse(raw) as Partial<DebugSettings>;
     return { ...DEFAULT, ...parsed };
   } catch {
@@ -46,7 +48,7 @@ export function mergeDebugSettings(
   const result = { ...current };
   for (const key of Object.keys(patch) as Array<keyof DebugSettings>) {
     if (typeof patch[key] === "boolean") {
-      (result as Record<string, boolean>)[key] = patch[key] as boolean;
+      result[key] = patch[key] as boolean;
     }
   }
   return result;
