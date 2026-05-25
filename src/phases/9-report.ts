@@ -142,6 +142,20 @@ function buildScoreHistogram(pairs: ScannerState["versionPairs"]): Record<string
 // Serialize state to plain JSON (Map → object, TypedArrays → arrays)
 function serializeState(state: ScannerState): unknown {
   const mqScore = computeMetadataQualityScore(state);
+  const originSummary = state.companyIdentity !== null ? (() => {
+    const internal = state.parsed.filter(d => d.documentOrigin === "internal").length;
+    const external = state.parsed.filter(d => d.documentOrigin === "external").length;
+    const unknown  = state.parsed.filter(d => d.documentOrigin === "unknown").length;
+    const total    = state.parsed.length;
+    return {
+      internal,
+      external,
+      unknown,
+      classificationRate: total > 0 ? (internal + external) / total : 0,
+      highConfidence: state.parsed.filter(d => d.originClassification?.confidence === "high").length,
+      lowConfidence:  state.parsed.filter(d => d.originClassification?.confidence === "low").length,
+    };
+  })() : undefined;
   return {
     scanId: state.scanId,
     startedAt: state.startedAt.toISOString(),
@@ -162,6 +176,7 @@ function serializeState(state: ScannerState): unknown {
       hybridPdfs: state.parsed.filter((d) => d.pdfClassification === "hybrid").length,
       ocrRequired: state.parsed.filter((d) => d.isOcrRequired).length,
     },
+    ...(originSummary !== undefined ? { originSummary } : {}),
     parseHealth: {
       failedFiles: state.parsed
         .filter((d) => !d.parseSuccess)
@@ -180,6 +195,7 @@ function serializeState(state: ScannerState): unknown {
       inferredCustomer: f.inferredCustomer,
       inferredProject: f.inferredProject,
       inferredDocumentCategory: f.inferredDocumentCategory,
+      ...(f.documentOrigin !== undefined ? { documentOrigin: f.documentOrigin } : {}),
     })),
     parsed: state.parsed.map((d) => ({
       id: d.id,
@@ -216,6 +232,8 @@ function serializeState(state: ScannerState): unknown {
       requirementMetadataReliable: d.requirementMetadataReliable,
       detectedOem: d.detectedOem,
       detectedDocType: d.detectedDocType,
+      ...(d.documentOrigin !== undefined ? { documentOrigin: d.documentOrigin } : {}),
+      ...(d.originClassification !== undefined ? { originClassification: d.originClassification } : {}),
     })),
     versionPairScoreHistogram: buildScoreHistogram(state.versionPairs),
     fingerprints: state.fingerprints.map((fp) => ({
@@ -802,6 +820,40 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     push("No critical items flagged.");
   }
   push("");
+
+  // — Origin Classification section —
+  if (state.companyIdentity) {
+    push("## Document Origin Classification", "");
+    const internal = state.parsed.filter(d => d.documentOrigin === "internal").length;
+    const external = state.parsed.filter(d => d.documentOrigin === "external").length;
+    const unknown  = state.parsed.filter(d => d.documentOrigin === "unknown").length;
+    const rate     = state.parsed.length > 0 ? (internal + external) / state.parsed.length : 0;
+    push(`**Internal:** ${internal} | **External:** ${external} | **Unknown:** ${unknown} (${(rate * 100).toFixed(0)}% classified)`);
+    push("");
+
+    const unknownDocs = state.parsed.filter(d => d.documentOrigin === "unknown");
+    if (unknownDocs.length > 0) {
+      push("### Unknown documents (need review)");
+      for (const doc of unknownDocs.slice(0, 10)) {
+        const signalSummary = doc.originClassification && doc.originClassification.signals.length > 0
+          ? doc.originClassification.signals.map(s => `${s.signal}(${s.direction[0]}+${s.weight})`).join(", ")
+          : "no signals fired";
+        push(`- ${doc.id}  ${doc.path.slice(0, 80)}  — ${signalSummary}`);
+      }
+      push("");
+    }
+
+    const lowConf = state.parsed.filter(d => d.originClassification?.confidence === "low");
+    if (lowConf.length > 0) {
+      push("### Low-confidence classifications");
+      for (const doc of lowConf.slice(0, 5)) {
+        const c = doc.originClassification!;
+        const topSignals = c.signals.map(s => s.signal).join("+");
+        push(`- ${doc.id}  ${doc.filename.slice(0, 60)}  — ${c.result} (score ${c.internalScore} vs ${c.externalScore}) via ${topSignals}`);
+      }
+      push("");
+    }
+  }
 
   return lines.join("\n");
 }
