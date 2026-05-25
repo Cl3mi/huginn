@@ -195,7 +195,6 @@ function serializeState(state: ScannerState): unknown {
       inferredCustomer: f.inferredCustomer,
       inferredProject: f.inferredProject,
       inferredDocumentCategory: f.inferredDocumentCategory,
-      ...(f.documentOrigin !== undefined ? { documentOrigin: f.documentOrigin } : {}),
     })),
     parsed: state.parsed.map((d) => ({
       id: d.id,

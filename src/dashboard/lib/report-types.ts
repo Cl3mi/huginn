@@ -175,7 +175,6 @@ export interface ReportData {
     inferredCustomer?: string;
     inferredProject?: string;
     inferredDocumentCategory?: string;
-    documentOrigin?: 'internal' | 'external' | 'unknown';
   }>;
 
   originSummary?: {
