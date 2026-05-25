@@ -3,6 +3,7 @@ import { logger } from "../utils/logger.ts";
 import { checkTikaHealth } from "../parsers/tika.ts";
 import { checkOllamaHealth } from "../llm/ollama.ts";
 import { runRegexTests } from "../utils/regex-patterns.ts";
+import { runChunkQualityTests } from "../utils/chunk-quality/tests.ts";
 import { handleRequest } from "./routes.ts";
 import { healthState } from "./health-state.ts";
 import {
@@ -59,6 +60,12 @@ async function start() {
   const regexResult = runRegexTests();
   if (!regexResult.passed) {
     logger.error("Regex test suite FAILED — aborting", { failures: regexResult.failures });
+    process.exit(1);
+  }
+
+  const chunkQualityResult = runChunkQualityTests();
+  if (!chunkQualityResult.passed) {
+    logger.error("Chunk-quality test suite FAILED — aborting", { failures: chunkQualityResult.failures });
     process.exit(1);
   }
 

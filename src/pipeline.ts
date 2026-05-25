@@ -10,6 +10,7 @@ import { checkOllamaHealth } from "./llm/ollama.ts";
 import { runHarvest } from "./phases/1-harvest.ts";
 import { runParse } from "./phases/2-parse.ts";
 import { runProjection } from "./phases/3-projection.ts";
+import { runChunkQuality } from "./phases/4-chunk-quality.ts";
 import { runFingerprint } from "./phases/4-fingerprint.ts";
 import { runCluster } from "./phases/5-cluster.ts";
 import { runReferences } from "./phases/6-references.ts";
@@ -91,12 +92,13 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     { name: "1-harvest",      fn: () => runHarvest(state),                idx: 0 },
     { name: "2-parse",        fn: () => runParse(state),                  idx: 1 },
     { name: "3-projection",   fn: () => runProjection(state),             idx: 2 },
-    { name: "4-fingerprint",  fn: () => runFingerprint(state, embedAvailable),  idx: 3 },
-    { name: "5-cluster",      fn: () => runCluster(state),                idx: 4 },
-    { name: "6-references",   fn: () => runReferences(state, ollamaOk),   idx: 5 },
-    { name: "7-requirements", fn: () => runRequirements(state, ollamaOk), idx: 6 },
-    { name: "8-validate",     fn: () => runValidate(state),               idx: 7 },
-    { name: "9-report",       fn: () => runReport(state, ollamaOk),       idx: 8 },
+    { name: "4-chunk-quality", fn: () => runChunkQuality(state, ollamaOk), idx: 3 },
+    { name: "4-fingerprint",  fn: () => runFingerprint(state, embedAvailable),  idx: 4 },
+    { name: "5-cluster",      fn: () => runCluster(state),                idx: 5 },
+    { name: "6-references",   fn: () => runReferences(state, ollamaOk),   idx: 6 },
+    { name: "7-requirements", fn: () => runRequirements(state, ollamaOk), idx: 7 },
+    { name: "8-validate",     fn: () => runValidate(state),               idx: 8 },
+    { name: "9-report",       fn: () => runReport(state, ollamaOk),       idx: 9 },
   ];
 
   // Emit a stats snapshot using state populated so far. Each phase that adds
@@ -126,7 +128,7 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
 
   for (const phase of phases) {
     const startedAt = Date.now();
-    onProgress?.({ type: "phase_start", phase: phase.name, phaseIndex: phase.idx, totalPhases: 9 });
+    onProgress?.({ type: "phase_start", phase: phase.name, phaseIndex: phase.idx, totalPhases: 10 });
     try {
       await phase.fn();
       emitStats(phase.name);
