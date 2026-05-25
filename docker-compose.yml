@@ -26,6 +26,7 @@ services:
       # Explicitly bind to all interfaces so other containers can reach :11434.
       # Some recent ollama/ollama:latest builds defaulted to 127.0.0.1.
       - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_FLASH_ATTENTION=false
     ports:
       - "11434:11434"
     volumes:

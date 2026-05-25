@@ -10,7 +10,7 @@ export const CONFIG = {
   get ollamaChatModel() { return process.env["OLLAMA_CHAT_MODEL"] || "llama3.1:8b"; },
 
   // configurable via OLLAMA_EMBED_TIMEOUT_MS / OLLAMA_COMPLETE_TIMEOUT_MS
-  ollamaEmbedTimeoutMs: parseInt(process.env["OLLAMA_EMBED_TIMEOUT_MS"] || "30000", 10),
+  ollamaEmbedTimeoutMs: parseInt(process.env["OLLAMA_EMBED_TIMEOUT_MS"] || "120000", 10),
   ollamaCompleteTimeoutMs: parseInt(process.env["OLLAMA_COMPLETE_TIMEOUT_MS"] || "60000", 10),
   get llmSampleRate() { return parseFloat(process.env["LLM_SAMPLE_RATE"] || "0.10"); },
   parserDivergenceThreshold: 0.20,  // 20% char count difference triggers alert
