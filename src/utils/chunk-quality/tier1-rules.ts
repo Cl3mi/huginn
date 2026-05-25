@@ -34,6 +34,35 @@ export function sentenceBoundaryQuality(chunk: RawChunk): number | null {
   return 0.0;
 }
 
+/**
+ * tableCut: detect table-row chunks that split mid-row.
+ * Returns null for non-table chunks AND for PDF-sourced docs.
+ * 1.0 if rows have stable column structure; 0.0 if first/last row diverges sharply from median.
+ */
+export function tableCut(chunk: RawChunk, sourceExtension: string): number | null {
+  if (chunk.chunkType !== "table_row") return null;
+  if (sourceExtension === ".pdf") return null;
+
+  const rows = chunk.content.split("\n").filter(r => r.trim().length > 0);
+  if (rows.length < 2) return null;
+
+  const colCounts = rows.map(r => {
+    const tabs = (r.match(/\t/g) ?? []).length;
+    const pipes = (r.match(/\|/g) ?? []).length;
+    return Math.max(tabs, pipes);
+  });
+  const median = [...colCounts].sort((a, b) => a - b)[Math.floor(colCounts.length / 2)] ?? 0;
+  if (median === 0) return null;
+
+  const first = colCounts[0] ?? 0;
+  const last = colCounts[colCounts.length - 1] ?? 0;
+  const firstCut = Math.abs(first - median) > median * 0.4;
+  const lastCut = Math.abs(last - median) > median * 0.4;
+
+  if (firstCut || lastCut) return 0.0;
+  return 1.0;
+}
+
 const REFERENCE_TOKEN_RE =
   /\b(siehe|vgl\.|wie\s+oben|s\.o\.|s\.u\.|dort|dieser|diese|dieses|see\s+above|see\s+below|aforementioned)\b/i;
 
