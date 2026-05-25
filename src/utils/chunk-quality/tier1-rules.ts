@@ -102,3 +102,10 @@ export function headerPollution(chunk: RawChunk): number {
   if (share >= 0.6) return 0.0;
   return 1.0 - ((share - 0.2) / 0.4);
 }
+
+/**
+ * contentScore: re-homed scoreBlock formula (density + coherence + specificity).
+ */
+export async function contentScore(chunk: RawChunk, hints: DomainHints): Promise<number> {
+  return scoreBlock(chunk.content, chunk.chunkType, hints);
+}
