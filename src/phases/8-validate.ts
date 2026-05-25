@@ -375,6 +375,32 @@ export async function runValidate(state: ScannerState): Promise<void> {
         : `${warningFailed} warnings — review flagged items before finalizing RAG architecture`),
   });
 
+  // 16. ORIGIN_CLASSIFICATION_COVERAGE — skip if no company identity configured
+  if (state.companyIdentity) {
+    const internalCount = state.parsed.filter(d => d.documentOrigin === "internal").length;
+    const externalCount = state.parsed.filter(d => d.documentOrigin === "external").length;
+    const unknownCount  = state.parsed.filter(d => d.documentOrigin === "unknown").length;
+    const classifiedCount = internalCount + externalCount;
+    const rate = state.parsed.length > 0 ? classifiedCount / state.parsed.length : 1;
+    const lowConfCount = state.parsed.filter(
+      d => d.originClassification?.confidence === "low",
+    ).length;
+
+    let interpretation = `${(rate * 100).toFixed(0)}% classified (${internalCount} internal, ${externalCount} external, ${unknownCount} unknown)`;
+    if (lowConfCount > 0 && rate >= 0.7) {
+      interpretation += ` — ${lowConfCount} low-confidence: add company aliases`;
+    }
+
+    checks.push(check(
+      "ORIGIN_CLASSIFICATION_COVERAGE",
+      rate,
+      0.7,
+      "above",
+      "WARNING",
+      clamp(interpretation),
+    ));
+  }
+
   state.consistencyChecks = checks.map((c) => ({
     ...c,
     interpretation: clamp(c.interpretation),
