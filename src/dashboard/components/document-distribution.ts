@@ -63,7 +63,13 @@ export async function renderDocumentDistribution(data: ReportData): Promise<stri
         <h3>Page Count Distribution</h3>
         <canvas id="pages-chart"></canvas>
       </div>` : ''}
+      <div class="chart-container">
+        <h3 style="font-family:'IBM Plex Mono',monospace;font-size:.8rem;color:#a0a4ab;margin-bottom:.5rem">ORIGIN</h3>
+        <canvas id="origin-chart"></canvas>
+      </div>
     </div>
+
+    <div id="dist-origin-unknown"></div>
 
     <!-- Document browser — populated by JS from embedded data, zero network requests -->
     <div class="doc-browser">
@@ -246,6 +252,42 @@ export async function renderDocumentDistribution(data: ReportData): Promise<stri
           scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
         },
       });` : ''}
+
+      // Origin breakdown donut
+      var originData = (function() {
+        var internal = 0, external = 0, unknown = 0;
+        var os = (_d && _d.originSummary) ? _d.originSummary : null;
+        if (os) { internal = os.internal || 0; external = os.external || 0; unknown = os.unknown || 0; }
+        return { internal: internal, external: external, unknown: unknown };
+      })();
+      if (document.getElementById('origin-chart')) {
+        new Chart(document.getElementById('origin-chart'), {
+          type: 'doughnut',
+          data: {
+            labels: ['Internal', 'External', 'Unknown'],
+            datasets: [{ data: [originData.internal, originData.external, originData.unknown],
+              backgroundColor: ['#43a047', '#ff6b35', '#555a64'], borderWidth: 0 }]
+          },
+          options: { plugins: { legend: { position: 'bottom', labels: { color: '#c9d1d9', font: { family: "'Fira Code', monospace", size: 11 } } } }, cutout: '65%' }
+        });
+      }
+
+      // Unknown origin docs — show if any exist
+      var unknownOriginDocs = (_d && _d.parsed ? _d.parsed : []).filter(function(p){ return p.documentOrigin === 'unknown'; });
+      var distOriginUnknown = document.getElementById('dist-origin-unknown');
+      if (unknownOriginDocs.length > 0 && distOriginUnknown) {
+        var unknownSection = document.createElement('div');
+        unknownSection.style.cssText = 'margin:1rem 0;padding:.75rem;background:#1a1f2e;border-left:3px solid #555a64;font-family:"Fira Code",monospace;font-size:.8rem';
+        unknownSection.innerHTML = '<span style="color:#a0a4ab">UNCLASSIFIED ORIGIN (' + unknownOriginDocs.length + ')</span><ul style="margin:.5rem 0 0;padding-left:1.2rem;color:#c9d1d9">'
+          + unknownOriginDocs.slice(0, 8).map(function(p){
+              var sigs = (p.originClassification && p.originClassification.signals && p.originClassification.signals.length > 0)
+                ? p.originClassification.signals.map(function(s){ return s.signal; }).join(', ')
+                : 'no signals';
+              return '<li>' + _esc(p.filename || p.id) + ' <span style="color:#555a64">— ' + _esc(sigs) + '</span></li>';
+            }).join('')
+          + '</ul>';
+        distOriginUnknown.appendChild(unknownSection);
+      }
     });
   </script>`;
 }
