@@ -1,5 +1,6 @@
 import type { RawChunk } from "../muninn-mirror/types.ts";
 import { EmbeddingCache } from "./embedding-cache.ts";
+import { estimateTokens } from "../token-estimator.ts";
 
 /**
  * Cosine similarity for L2-normalized vectors (BGE-M3 default).
@@ -71,5 +72,61 @@ export async function coherenceDrop(
   return {
     mean: Math.max(0, Math.min(1, 1 - meanDrop)),
     p10:  Math.max(0, Math.min(1, 1 - p90Drop)),  // worst-10% drop → p10 of score
+  };
+}
+
+const MIN_TOKENS_FOR_INTRA = 100;
+
+/**
+ * intraChunkCohesion: per-doc score in [0, 1].
+ * For each chunk ≥ MIN_TOKENS_FOR_INTRA, split at token midpoint, embed each half,
+ * score = cos(half_a, half_b). Chunks under 100 tokens skipped.
+ */
+export async function intraChunkCohesion(
+  chunks: RawChunk[],
+  cache: EmbeddingCache,
+  normCheck: NormalizationCheck,
+): Promise<{ mean: number; p10: number; nMeasurable: number } | null> {
+  const scores: number[] = [];
+
+  for (const chunk of chunks) {
+    const tokens = estimateTokens(chunk.content);
+    if (tokens < MIN_TOKENS_FOR_INTRA) continue;
+
+    const midpoint = Math.floor(chunk.content.length / 2);
+    let splitAt = midpoint;
+    for (let i = 0; i < 30 && midpoint + i < chunk.content.length; i++) {
+      if (chunk.content[midpoint + i] === " " || chunk.content[midpoint + i] === "\n") {
+        splitAt = midpoint + i;
+        break;
+      }
+    }
+    const halfA = chunk.content.slice(0, splitAt).trim();
+    const halfB = chunk.content.slice(splitAt).trim();
+    if (halfA.length === 0 || halfB.length === 0) continue;
+
+    let embA = await cache.get(halfA);
+    let embB = await cache.get(halfB);
+
+    for (const emb of [embA, embB]) {
+      const dev = Math.abs(l2Norm(emb) - 1);
+      normCheck.sampleSize++;
+      if (dev > normCheck.maxDeviation) normCheck.maxDeviation = dev;
+      if (dev > 0.001) normCheck.allNormalized = false;
+    }
+    embA = normalize(embA);
+    embB = normalize(embB);
+
+    scores.push(cosineSim(embA, embB));
+  }
+
+  if (scores.length === 0) return null;
+  const sorted = [...scores].sort((a, b) => a - b);
+  const mean = scores.reduce((s, x) => s + x, 0) / scores.length;
+  const p10 = sorted[Math.floor(0.1 * sorted.length)] ?? mean;
+  return {
+    mean: Math.max(0, Math.min(1, mean)),
+    p10:  Math.max(0, Math.min(1, p10)),
+    nMeasurable: scores.length,
   };
 }
