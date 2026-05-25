@@ -33,3 +33,27 @@ export function sentenceBoundaryQuality(chunk: RawChunk): number | null {
   if (startsOk || endsOk) return 0.5;
   return 0.0;
 }
+
+const REFERENCE_TOKEN_RE =
+  /\b(siehe|vgl\.|wie\s+oben|s\.o\.|s\.u\.|dort|dieser|diese|dieses|see\s+above|see\s+below|aforementioned)\b/i;
+
+const ANTECEDENT_RE = /\b(abschnitt|kapitel|section|chapter)\s+\d/i;
+
+/**
+ * crossReferenceCut:
+ *   - 1.0 if no reference token detected in first 80 chars
+ *   - 1.0 if a reference token is present but an antecedent appears earlier in the chunk
+ *   - 0.0 if a reference token is in the first 80 chars and no antecedent precedes it
+ */
+export function crossReferenceCut(chunk: RawChunk): number {
+  const text = chunk.content;
+  const head = text.slice(0, 80);
+  const refMatch = REFERENCE_TOKEN_RE.exec(head);
+  if (!refMatch) return 1.0;
+
+  const refIdx = refMatch.index;
+  const beforeRef = text.slice(0, refIdx);
+  if (ANTECEDENT_RE.test(beforeRef)) return 1.0;
+
+  return 0.0;
+}
