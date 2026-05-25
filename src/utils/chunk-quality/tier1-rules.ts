@@ -86,3 +86,19 @@ export function crossReferenceCut(chunk: RawChunk): number {
 
   return 0.0;
 }
+
+/**
+ * headerPollution: penalize chunks dominated by heading-only lines.
+ * 1.0 if header line share ≤ 20%; linear falloff to 0.0 at ≥ 60%.
+ */
+export function headerPollution(chunk: RawChunk): number {
+  const lines = chunk.content.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+  if (lines.length === 0) return 1.0;
+
+  const headerLines = lines.filter(l => classifyBlock(l) === "header").length;
+  const share = headerLines / lines.length;
+
+  if (share <= 0.2) return 1.0;
+  if (share >= 0.6) return 0.0;
+  return 1.0 - ((share - 0.2) / 0.4);
+}
