@@ -18,3 +18,18 @@ export function sizeFit(chunk: RawChunk): number {
   }
   return 1.0 - ((tokens - 550) / 350) * 0.8;
 }
+
+/**
+ * sentenceBoundaryQuality: cleanliness of first/last sentence boundaries.
+ * Returns null for table_row chunks (boundaries don't apply).
+ */
+export function sentenceBoundaryQuality(chunk: RawChunk): number | null {
+  if (chunk.chunkType === "table_row") return null;
+  const b = analyzeBoundaries(chunk.content);
+  if (!b) return null;
+  const startsOk = b.first.startsCleanly;
+  const endsOk = b.last.endsCleanly;
+  if (startsOk && endsOk) return 1.0;
+  if (startsOk || endsOk) return 0.5;
+  return 0.0;
+}
