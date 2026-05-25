@@ -12,7 +12,6 @@ import { logger, setPhase } from "../utils/logger.ts";
 import { estimateTokens, estimateChunkTokens } from "../utils/token-estimator.ts";
 import { cleanContent, classifyBlock, BOILERPLATE_PATTERNS } from "../utils/cleaner.ts";
 import { filterChunk } from "../utils/chunk-filter.ts";
-import { scoreBlock } from "../utils/quality-scorer.ts";
 import { detectDomainSignals, buildDomainProfile, type DomainSignalSample } from "../utils/domain-detector.ts";
 import { _lastAccumulator } from "./2-parse.ts";
 
@@ -125,11 +124,7 @@ export async function projectDocument(
   const predictedChunkCount         = simulateChunkCount(doc, afterCleaning);
   const predictedFilteredChunkCount = failedChunks;
 
-  // 5. Quality distribution (sample ≤30 blocks)
-  const sampleBlocks = evenSample(blocks, 30);
-  const qualityDist  = await sampleQualityDistribution(sampleBlocks, estimateChunkTokens);
-
-  // 6. Block type distribution (0–1 shares)
+  // 5. Block type distribution (0–1 shares)
   const blockTypeDistribution = totalCompressedTokens > 0
     ? {
         prose:       blockTypeTokens.prose       / totalCompressedTokens,
@@ -158,7 +153,6 @@ export async function projectDocument(
     predictedChunkCount,
     predictedFilteredChunkCount,
     blockTypeDistribution,
-    predictedQualityDistribution: qualityDist,
     tokenRetentionRate: raw > 0 ? embeddable / raw : 0,
   };
 }
@@ -174,7 +168,6 @@ function emptyProjection(docId: string): DocumentIngestionProjection {
     predictedChunkCount: 0,
     predictedFilteredChunkCount: 0,
     blockTypeDistribution: { prose: 1, header: 0, specValue: 0, tableRow: 0, boilerplate: 0 },
-    predictedQualityDistribution: { high: 0, medium: 0, low: 0 },
     tokenRetentionRate: 0,
   };
 }
@@ -206,31 +199,6 @@ function simulateChunkCount(doc: ParsedDocument, cleanedTokens: number): number 
     default:
       return Math.max(1, Math.ceil(cleanedTokens / effective));
   }
-}
-
-function evenSample<T>(arr: T[], max: number): T[] {
-  if (arr.length <= max) return arr;
-  const step = arr.length / max;
-  return Array.from({ length: max }, (_, i) => arr[Math.floor(i * step)]!);
-}
-
-async function sampleQualityDistribution(
-  blocks: string[],
-  _estimator: typeof estimateChunkTokens,
-): Promise<{ high: number; medium: number; low: number }> {
-  if (blocks.length === 0) return { high: 0, medium: 0, low: 0 };
-  let highTokens = 0, medTokens = 0, lowTokens = 0, total = 0;
-  for (const block of blocks) {
-    const btype = classifyBlock(block);
-    const tokens = estimateChunkTokens(block, btype);
-    const score = await scoreBlock(block, btype, {});
-    total += tokens;
-    if (score >= 0.7)      highTokens += tokens;
-    else if (score >= 0.4) medTokens  += tokens;
-    else                   lowTokens  += tokens;
-  }
-  if (total === 0) return { high: 0, medium: 0, low: 0 };
-  return { high: highTokens / total, medium: medTokens / total, low: lowTokens / total };
 }
 
 // ── 9b: Corpus-wide boilerplate discovery ─────────────────────────────────
@@ -341,31 +309,6 @@ function generateConfigRecommendations(
     }
   }
 
-  // QUALITY_THRESHOLD: from quality distribution
-  const allLow    = projections.reduce((s, p) => s + p.predictedQualityDistribution.low, 0)    / projections.length;
-  const allMedium = projections.reduce((s, p) => s + p.predictedQualityDistribution.medium, 0) / projections.length;
-  if (allLow > 0.25) {
-    recs.push({
-      parameter: "QUALITY_THRESHOLD",
-      currentDefault: 0.4,
-      recommendedValue: 0.3,
-      confidence: projections.length >= 10 ? "HIGH" : "MEDIUM",
-      reasoning: `${Math.round(allLow * 100)}% of content-bearing tokens score below 0.4 — lowering threshold prevents excessive chunk loss.`,
-      evidenceDocCount: projections.length,
-      affectedTokenShare: allLow + allMedium,
-    });
-  } else if (allLow < 0.05) {
-    recs.push({
-      parameter: "QUALITY_THRESHOLD",
-      currentDefault: 0.4,
-      recommendedValue: 0.5,
-      confidence: projections.length >= 10 ? "HIGH" : "MEDIUM",
-      reasoning: `Only ${Math.round(allLow * 100)}% of tokens score below 0.4 — raising threshold tightens retrieval quality without significant loss.`,
-      evidenceDocCount: projections.length,
-      affectedTokenShare: allLow,
-    });
-  }
-
   // BOILERPLATE_PATTERNS additions
   const newPatterns = boilerplatePatterns.filter((p) => !p.alreadyCovered && p.documentCount >= 5);
   if (newPatterns.length > 0) {
@@ -442,10 +385,9 @@ function buildCorpusSummary(
     const proj = projections.find((p) => p.docId === doc.id);
     if (!proj) continue;
     const key = doc.detectedDocType ?? "other";
-    const entry = byDocType[key] ?? { docCount: 0, retentionRate: 0, avgQualityHigh: 0, dominantChunkStrategy: doc.recommendedChunkStrategy, avgPredictedChunkCount: 0 };
+    const entry = byDocType[key] ?? { docCount: 0, retentionRate: 0, dominantChunkStrategy: doc.recommendedChunkStrategy, avgPredictedChunkCount: 0 };
     entry.docCount++;
     entry.retentionRate          = (entry.retentionRate * (entry.docCount - 1) + proj.tokenRetentionRate) / entry.docCount;
-    entry.avgQualityHigh         = (entry.avgQualityHigh * (entry.docCount - 1) + proj.predictedQualityDistribution.high) / entry.docCount;
     entry.avgPredictedChunkCount = (entry.avgPredictedChunkCount * (entry.docCount - 1) + proj.predictedChunkCount) / entry.docCount;
     byDocType[key] = entry;
   }

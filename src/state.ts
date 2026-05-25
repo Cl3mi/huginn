@@ -284,11 +284,6 @@ export interface DocumentIngestionProjection {
     tableRow: number;
     boilerplate: number;
   };
-  predictedQualityDistribution: {
-    high: number;
-    medium: number;
-    low: number;
-  };
   tokenRetentionRate: number;
 }
 
@@ -300,7 +295,6 @@ export interface CorpusIngestionSummary {
   byDocType: Record<string, {
     docCount: number;
     retentionRate: number;
-    avgQualityHigh: number;
     dominantChunkStrategy: string;
     avgPredictedChunkCount: number;
   }>;
