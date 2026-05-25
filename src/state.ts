@@ -5,6 +5,20 @@ import type { SectorProfile, CompanyIdentity } from "./profiles/types.ts";
 import { automotiveDe } from "./profiles/automotive.ts";
 import type { DecisionRecord, PatternCoverageEntry, LlmSampleRecord, ZeroOutputEntry } from "./debug/types.ts";
 
+export interface OriginSignal {
+  signal: string;                          // e.g. "path_segment_match"
+  direction: "internal" | "external";
+  weight: number;
+}
+
+export interface OriginClassification {
+  result: "internal" | "external" | "unknown";
+  internalScore: number;
+  externalScore: number;
+  confidence: "high" | "medium" | "low" | "none";
+  signals: OriginSignal[];
+}
+
 export interface FileEntry {
   id: string;                    // sequential, e.g. "doc-001"
   path: string;                  // relative to DOCUMENTS_ROOT
@@ -20,7 +34,7 @@ export interface FileEntry {
   inferredCustomer?: string;
   inferredProject?: string;
   inferredDocumentCategory?: "rfq" | "quotation"; // detected from path segment (e.g. rfq/, quotations/)
-  documentOrigin?: "internal" | "external";   // set by Phase 1/2 via company identity matching
+  documentOrigin?: "internal" | "external" | "unknown";   // set by Phase 2 classifier
 }
 
 export interface HeadingNode {
@@ -63,6 +77,10 @@ export interface ParsedDocument extends FileEntry {
   dateSignals: DateSignals;      // used by Phase 4 for bestDate ordering
   // Runtime cache — set in Phase 2, consumed by Phases 3/5/6. NEVER serialized to JSON.
   textContent?: string;
+  // Runtime hint — set in Phase 2 from Tika PDF metadata. NEVER serialized to JSON.
+  pdfAuthorHint?: string;
+  // Classification result — set by Phase 2 classifier. Serialized to JSON.
+  originClassification?: OriginClassification;
   requirementQuality?: { confirmed: number; negated: number; uncertain: number; raw: number }; // set in Phase 6
   // RAG: Direct chunking strategy signal for downstream ingestion pipeline
   recommendedChunkStrategy: "heading_sections" | "table_rows" | "sliding_window";
