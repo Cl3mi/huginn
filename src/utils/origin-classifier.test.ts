@@ -57,6 +57,9 @@ describe("classifyOrigin — thresholds", () => {
   test("doctype_internal (+2) alone → unknown", () => {
     expect(classifyOrigin([{ signal: "doctype_internal", direction: "internal", weight: 2 }]).result).toBe("unknown");
   });
+  test("internalScore=3, externalScore=0 → unknown (threshold is 4 by design)", () => {
+    expect(classifyOrigin([{ signal: "content_match_strong", direction: "internal", weight: 3 }]).result).toBe("unknown");
+  });
   test("path_segment_match (+4) alone → internal", () => {
     expect(classifyOrigin([{ signal: "path_segment_match", direction: "internal", weight: 4 }]).result).toBe("internal");
   });

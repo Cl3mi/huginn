@@ -8,12 +8,26 @@ export interface DocxAuthorMeta {
   company?: string;
 }
 
-const INTERNAL_DOCTYPES = new Set([
-  "arbeitsanweisung", "protokoll", "handbuch", "lessons_learned", "8d_report",
-  "kontrollplan", "serienfreigabe", "empb", "aenderungsantrag", "reklamation", "fmea",
-]);
-const EXTERNAL_STRONG_DOCTYPES = new Set(["lastenheft", "sla", "norm"]);
-const EXTERNAL_WEAK_DOCTYPES   = new Set(["qualitätsvorgabe", "pruefspezifikation"]);
+// Single lookup — each doctype maps to at most one signal, making overlaps impossible by construction.
+type DetectedDocType = NonNullable<ParsedDocument["detectedDocType"]>;
+const DOCTYPE_SIGNALS: Partial<Record<DetectedDocType, OriginSignal>> = {
+  "arbeitsanweisung":   { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "protokoll":          { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "handbuch":           { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "lessons_learned":    { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "8d_report":          { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "kontrollplan":       { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "serienfreigabe":     { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "empb":               { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "aenderungsantrag":   { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "reklamation":        { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "fmea":               { signal: "doctype_internal",        direction: "internal", weight: 2 },
+  "lastenheft":         { signal: "doctype_external_strong", direction: "external", weight: 3 },
+  "sla":                { signal: "doctype_external_strong", direction: "external", weight: 3 },
+  "norm":               { signal: "doctype_external_strong", direction: "external", weight: 3 },
+  "qualitätsvorgabe":   { signal: "doctype_external_weak",   direction: "external", weight: 2 },
+  "pruefspezifikation": { signal: "doctype_external_weak",   direction: "external", weight: 2 },
+};
 
 function countCompanyMentions(text: string, identity: CompanyIdentity): number {
   const normalized = text.toLowerCase();
@@ -56,20 +70,15 @@ export function collectOriginSignals(
     else if (count >= 1) signals.push({ signal: "content_match_weak",   direction: "internal", weight: 1 });
   }
 
-  if (doc.detectedDocType && INTERNAL_DOCTYPES.has(doc.detectedDocType)) {
-    signals.push({ signal: "doctype_internal", direction: "internal", weight: 2 });
+  if (doc.detectedDocType) {
+    const dts = DOCTYPE_SIGNALS[doc.detectedDocType];
+    if (dts) signals.push({ ...dts });
   }
   if (doc.inferredCustomer) {
     signals.push({ signal: "oem_folder_detected", direction: "external", weight: 3 });
   }
-  if (doc.detectedDocType && EXTERNAL_STRONG_DOCTYPES.has(doc.detectedDocType)) {
-    signals.push({ signal: "doctype_external_strong", direction: "external", weight: 3 });
-  }
   if (doc.inferredDocumentCategory === "rfq" || doc.inferredDocumentCategory === "quotation") {
     signals.push({ signal: "doc_category_rfq", direction: "external", weight: 2 });
-  }
-  if (doc.detectedDocType && EXTERNAL_WEAK_DOCTYPES.has(doc.detectedDocType)) {
-    signals.push({ signal: "doctype_external_weak", direction: "external", weight: 2 });
   }
 
   return signals;
@@ -80,6 +89,9 @@ export function classifyOrigin(signals: OriginSignal[]): OriginClassification {
   const externalScore = signals.filter(s => s.direction === "external").reduce((sum, s) => sum + s.weight, 0);
 
   let result: "internal" | "external" | "unknown";
+  // Thresholds are intentionally asymmetric: internal requires ≥ 4, external requires ≥ 3.
+  // Internal threshold is higher because a precision error (labelling a customer doc "internal")
+  // is more harmful than leaving a borderline doc as "unknown".
   if      (internalScore >= 4 && internalScore > externalScore) result = "internal";
   else if (externalScore >= 3 && externalScore > internalScore) result = "external";
   else                                                           result = "unknown";
