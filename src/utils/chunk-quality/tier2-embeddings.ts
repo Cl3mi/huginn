@@ -130,3 +130,55 @@ export async function intraChunkCohesion(
     nMeasurable: scores.length,
   };
 }
+
+/**
+ * centroidDistance: per-doc score in [0, 1] after per-doc z-score normalization.
+ * For each chunk: distance = 1 - cos(emb, centroid). Then z-score; map to [0,1].
+ */
+export async function centroidDistance(
+  chunks: RawChunk[],
+  cache: EmbeddingCache,
+  normCheck: NormalizationCheck,
+): Promise<{ mean: number; p10: number }> {
+  if (chunks.length === 0) return { mean: 0, p10: 0 };
+
+  const embeddings: Float32Array[] = [];
+  for (const chunk of chunks) {
+    let emb = await cache.get(chunk.content);
+    const dev = Math.abs(l2Norm(emb) - 1);
+    normCheck.sampleSize++;
+    if (dev > normCheck.maxDeviation) normCheck.maxDeviation = dev;
+    if (dev > 0.001) {
+      normCheck.allNormalized = false;
+      emb = normalize(emb);
+    }
+    embeddings.push(emb);
+  }
+
+  const dim = embeddings[0]?.length ?? 0;
+  if (dim === 0) return { mean: 0, p10: 0 };
+  const centroid = new Float32Array(dim);
+  for (const emb of embeddings) {
+    for (let i = 0; i < dim; i++) centroid[i] = (centroid[i] ?? 0) + (emb[i] ?? 0);
+  }
+  for (let i = 0; i < dim; i++) centroid[i] = (centroid[i] ?? 0) / embeddings.length;
+  const centroidNormed = normalize(centroid);
+
+  const distances = embeddings.map(e => 1 - cosineSim(e, centroidNormed));
+
+  const meanDist = distances.reduce((s, d) => s + d, 0) / distances.length;
+  const variance =
+    distances.reduce((s, d) => s + (d - meanDist) ** 2, 0) / Math.max(1, distances.length - 1);
+  const stddev = Math.sqrt(variance);
+
+  const scores = distances.map(d => {
+    if (stddev === 0) return 1.0;
+    const z = Math.abs((d - meanDist) / stddev);
+    return Math.max(0, Math.min(1, 1 - z / 3));
+  });
+
+  const sorted = [...scores].sort((a, b) => a - b);
+  const mean = scores.reduce((s, x) => s + x, 0) / scores.length;
+  const p10 = sorted[Math.floor(0.1 * sorted.length)] ?? mean;
+  return { mean, p10 };
+}
