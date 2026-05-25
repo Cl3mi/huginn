@@ -836,7 +836,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
       push("### Unknown documents (need review)");
       for (const doc of unknownDocs.slice(0, 10)) {
         const signalSummary = doc.originClassification && doc.originClassification.signals.length > 0
-          ? doc.originClassification.signals.map(s => `${s.signal}(${s.direction[0]}+${s.weight})`).join(", ")
+          ? doc.originClassification.signals.map(s => `${s.signal}(${s.direction === "internal" ? "int" : "ext"}+${s.weight})`).join(", ")
           : "no signals fired";
         push(`- ${doc.id}  ${doc.path.slice(0, 80)}  — ${signalSummary}`);
       }
