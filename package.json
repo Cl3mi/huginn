@@ -8,6 +8,7 @@
     "start": "bun run src/index.ts",
     "dev": "bun --watch src/index.ts",
     "typecheck": "tsc --noEmit",
+    "test:chunk-quality": "bun run src/utils/chunk-quality/tests.ts",
     "dashboard:generate": "bun run src/dashboard/cli-generate.ts",
     "dashboard:serve": "bun run src/dashboard/cli-serve.ts"
   },
@@ -16,7 +17,8 @@
     "franc": "^6.2.0",
     "glob": "^11.0.0",
     "chart.js": "^4.4.0",
-    "d3": "^7.8.0"
+    "d3": "^7.8.0",
+    "compromise": "^14.14.0"
   },
   "devDependencies": {
     "@types/bun": "latest",
