@@ -198,6 +198,61 @@ export interface ConsistencyCheck {
   interpretation: string;
 }
 
+// ── Phase 4: Chunk Quality ───────────────────────────────────────────────────
+
+export type ChunkQualityBudget = "fast" | "normal" | "full";
+
+export interface ChunkQualityMetricValue {
+  score: number | null;
+  reason?: string;  // ≤120 chars; only when null or score < 0.4
+}
+
+export interface ChunkQualityPerDocTier1 {
+  sizeFit:                 { mean: number; p10: number };
+  sentenceBoundaryQuality: { mean: number; p10: number };
+  crossReferenceCut:       { mean: number; p10: number };
+  tableCut:                { mean: number | null; p10: number | null };
+  headerPollution:         { mean: number; p10: number };
+  contentScore:            { mean: number; p10: number };
+}
+
+export interface ChunkQualityPerDocTier2 {
+  coherenceDrop:      { mean: number; p10: number } | null;
+  intraChunkCohesion: { mean: number; p10: number; nMeasurable: number } | null;
+  centroidDistance:   { mean: number; p10: number };
+}
+
+export interface ChunkQualityPerDoc {
+  docId: string;
+  chunkCountTotal:    number;
+  chunkCountEmbedded: number;
+  budgetMode:         ChunkQualityBudget;
+  budgetCapHit:       boolean;
+  tier1:              ChunkQualityPerDocTier1;
+  tier2:              ChunkQualityPerDocTier2 | null;
+  chunkQualityIndex:  { mean: number; p10: number };
+  bucketCounts:       { good: number; acceptable: number; poor: number };
+  weakestLinks:       string[];  // top 3, each ≤120 chars
+}
+
+export interface ChunkQualityCorpusSummary {
+  budgetMode:              ChunkQualityBudget;
+  totalChunks:             number;
+  totalChunksEmbedded:     number;
+  tokenWeightedIndexMean:  number;
+  bucketShare:             { good: number; acceptable: number; poor: number };
+  worstDocsByP10:          Array<{ docId: string; p10: number; primaryWeakness: string }>;
+  weakestCorpusMetrics:    Array<{ metric: string; mean: number }>;
+  embeddingsCacheStats:    { uniqueChunks: number; cacheHits: number; cacheMisses: number };
+  bgeM3NormalizationCheck: { sampleSize: number; allNormalized: boolean; maxDeviation: number };
+}
+
+export interface ChunkQualityReport {
+  perDoc:      ChunkQualityPerDoc[];
+  corpus:      ChunkQualityCorpusSummary;
+  generatedAt: Date;
+}
+
 // ── Phase 9: Ingestion Projection ────────────────────────────────────────────
 
 export interface DocumentIngestionProjection {
@@ -321,6 +376,8 @@ export interface ScannerState {
     llmRejectedCount?: number;   // requirements rejected by LLM but found by regex
   };
   consistencyChecks: ConsistencyCheck[];
+  // Phase 4: Chunk Quality
+  chunkQuality: ChunkQualityReport;
   // Phase 9: Ingestion Projection
   ingestionProjections: DocumentIngestionProjection[];
   corpusIngestionSummary: CorpusIngestionSummary;
@@ -367,6 +424,21 @@ export function createInitialState(
       confidenceInterval: { lower: 0, upper: 0 },
     },
     consistencyChecks: [],
+    chunkQuality: {
+      perDoc: [],
+      corpus: {
+        budgetMode: "normal",
+        totalChunks: 0,
+        totalChunksEmbedded: 0,
+        tokenWeightedIndexMean: 0,
+        bucketShare: { good: 0, acceptable: 0, poor: 0 },
+        worstDocsByP10: [],
+        weakestCorpusMetrics: [],
+        embeddingsCacheStats: { uniqueChunks: 0, cacheHits: 0, cacheMisses: 0 },
+        bgeM3NormalizationCheck: { sampleSize: 0, allNormalized: true, maxDeviation: 0 },
+      },
+      generatedAt: new Date(0),
+    },
     ingestionProjections: [],
     corpusIngestionSummary: {
       totalTokensRaw: 0,
