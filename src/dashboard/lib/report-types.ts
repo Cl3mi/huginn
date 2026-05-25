@@ -153,6 +153,14 @@ export interface ReportData {
     requirementMetadataReliable?: boolean;
     detectedOem?: string;
     detectedDocType?: string;
+    documentOrigin?: 'internal' | 'external' | 'unknown';
+    originClassification?: {
+      result: 'internal' | 'external' | 'unknown';
+      internalScore: number;
+      externalScore: number;
+      confidence: 'high' | 'medium' | 'low' | 'none';
+      signals: Array<{ signal: string; direction: 'internal' | 'external'; weight: number }>;
+    };
   }>;
 
   files?: Array<{
@@ -168,6 +176,15 @@ export interface ReportData {
     inferredProject?: string;
     inferredDocumentCategory?: string;
   }>;
+
+  originSummary?: {
+    internal: number;
+    external: number;
+    unknown: number;
+    classificationRate: number;
+    highConfidence: number;
+    lowConfidence: number;
+  };
 }
 
 export const NORM_TYPES = new Set(['iso_norm', 'din_norm', 'en_norm', 'vda_norm', 'iatf_norm'] as const);

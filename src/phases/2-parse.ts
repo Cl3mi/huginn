@@ -9,7 +9,7 @@ import { parseWithTika } from "../parsers/tika.ts";
 import { parseWithOfficeParser } from "../parsers/officeparser.ts";
 import { compareParserResults } from "../parsers/parser-compare.ts";
 import { ProjectionAccumulator, projectDocument } from "./3-projection.ts";
-import { matchesCompany } from "../utils/company-identity.ts";
+import { collectOriginSignals, classifyOrigin, type DocxAuthorMeta } from "../utils/origin-classifier.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -149,6 +149,32 @@ async function extractDateFromDocxCoreXml(absolutePath: string): Promise<Date | 
     // not a DOCX or unzip failed
   }
   return null;
+}
+
+// Extract author and company metadata from DOCX — reads docProps/core.xml and docProps/app.xml
+async function extractDocxAuthorMeta(absolutePath: string): Promise<DocxAuthorMeta> {
+  const meta: DocxAuthorMeta = {};
+  try {
+    const { stdout: coreXml } = await execFileAsync(
+      "unzip",
+      ["-p", absolutePath, "docProps/core.xml"],
+      { maxBuffer: 100 * 1024, timeout: 5000 },
+    );
+    const creator = coreXml.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/)?.[1]?.trim();
+    const lastBy  = coreXml.match(/<cp:lastModifiedBy[^>]*>([^<]+)<\/cp:lastModifiedBy>/)?.[1]?.trim();
+    if (creator) meta.creator = creator;
+    if (lastBy)  meta.lastModifiedBy = lastBy;
+  } catch { /* unzip failed or not a DOCX — skip */ }
+  try {
+    const { stdout: appXml } = await execFileAsync(
+      "unzip",
+      ["-p", absolutePath, "docProps/app.xml"],
+      { maxBuffer: 100 * 1024, timeout: 5000 },
+    );
+    const company = appXml.match(/<Company>([^<]+)<\/Company>/)?.[1]?.trim();
+    if (company) meta.company = company;
+  } catch { /* no app.xml — skip */ }
+  return meta;
 }
 
 // Extract revision/stand date from text — searches first 3000 chars where metadata typically appears
@@ -541,12 +567,14 @@ export async function runParse(state: ScannerState): Promise<void> {
 
   if (state.companyIdentity) {
     for (const doc of state.parsed) {
-      if (doc.documentOrigin !== undefined) continue;  // already set by harvest
-      const sample = (doc.textContent ?? "").slice(0, 2000);
-      if (sample.length === 0) continue;
-      doc.documentOrigin = matchesCompany(sample, state.companyIdentity)
-        ? "internal"
-        : "external";
+      let docxMeta: DocxAuthorMeta | undefined;
+      if (doc.extension === ".docx") {
+        docxMeta = await extractDocxAuthorMeta(doc.absolutePath);
+      }
+      const signals = collectOriginSignals(doc, state.companyIdentity, docxMeta, doc.pdfAuthorHint);
+      const classification = classifyOrigin(signals);
+      doc.originClassification = classification;
+      doc.documentOrigin = classification.result;
     }
   }
 
@@ -656,6 +684,13 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
 
 async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
   const tikaResult = await parseWithTika(file.absolutePath);
+
+  // Capture author hint for origin classifier — not serialized
+  const pdfAuthorHint =
+    tikaResult.metadata["Author"] ??
+    tikaResult.metadata["dc:creator"] ??
+    tikaResult.metadata["meta:author"];
+
   const tikaText = normalizeWhitespace(tikaResult.text);
   const tikaGarbled = isGarbledText(tikaText);
 
@@ -745,6 +780,7 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
     detectedOem,
     oemSource,
     ...(detectedDocType ? { detectedDocType } : {}),
+    ...(pdfAuthorHint ? { pdfAuthorHint } : {}),
     // cached for downstream phases — avoids re-reading binary files
     ...(!tikaGarbled && tikaText.length > 0 ? { textContent: tikaText.slice(0, 2_000_000) } : {}),
   };
