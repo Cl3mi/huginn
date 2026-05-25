@@ -68,7 +68,15 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     logger.warn("Tika is not reachable — PDF parsing will be skipped", { url: CONFIG.tikaUrl });
   }
 
-  const { ok: ollamaOk } = await checkOllamaHealth();
+  const { ok: ollamaOk, modelsAvailable } = await checkOllamaHealth();
+  const embedModel = settings.embedModel;
+  const embedModelInstalled = modelsAvailable.some(
+    (m) => m === embedModel || m.startsWith(embedModel.split(":")[0] + ":"),
+  );
+  const embedAvailable = ollamaOk && embedModelInstalled;
+  if (ollamaOk && !embedModelInstalled) {
+    logger.warn("Embed model not installed — semantic embeddings will be skipped", { embedModel });
+  }
 
   const debugSettings = loadDebugSettings();
   const state = createInitialState(scanId, folder, profile, companyIdentity);
@@ -83,7 +91,7 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     { name: "1-harvest",      fn: () => runHarvest(state),                idx: 0 },
     { name: "2-parse",        fn: () => runParse(state),                  idx: 1 },
     { name: "3-projection",   fn: () => runProjection(state),             idx: 2 },
-    { name: "4-fingerprint",  fn: () => runFingerprint(state, ollamaOk),  idx: 3 },
+    { name: "4-fingerprint",  fn: () => runFingerprint(state, embedAvailable),  idx: 3 },
     { name: "5-cluster",      fn: () => runCluster(state),                idx: 4 },
     { name: "6-references",   fn: () => runReferences(state, ollamaOk),   idx: 5 },
     { name: "7-requirements", fn: () => runRequirements(state, ollamaOk), idx: 6 },
