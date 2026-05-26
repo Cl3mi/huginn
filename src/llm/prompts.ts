@@ -194,3 +194,14 @@ Write 2-3 paragraphs providing:
 
 Frame this as actionable guidance. Do not repeat the numbers back — explain what they imply. Write in plain English prose. No bullet points, no JSON.`;
 }
+
+export function chunkQualityNarrativePrompt(input: unknown): string {
+  return `You are explaining a quality assessment of how a document corpus will be chunked for retrieval.
+
+Here are the chunk-quality metrics:
+${JSON.stringify(input, null, 2)}
+
+Write 2-3 paragraphs describing the corpus chunk-quality profile.
+Style: technical, factual, German-friendly English. No chunk content quoted. No new numbers invented.
+Do not output a heading — only paragraph prose.`;
+}

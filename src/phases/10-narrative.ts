@@ -13,6 +13,7 @@ import {
   narrativeParserReliabilityPrompt,
   narrativeReferenceGraphPrompt,
   narrativeRagSynthesisPrompt,
+  chunkQualityNarrativePrompt,
 } from "../llm/prompts.ts";
 
 const writeFileAsync = promisify(writeFile);
@@ -547,6 +548,23 @@ function buildRagSynthesisInput(
   };
 }
 
+function buildChunkQualityInput(state: ScannerState): unknown {
+  const cq = state.chunkQuality;
+  return {
+    budgetMode:             cq.corpus.budgetMode,
+    totalChunks:            cq.corpus.totalChunks,
+    totalChunksEmbedded:    cq.corpus.totalChunksEmbedded,
+    tokenWeightedIndexMean: Number(cq.corpus.tokenWeightedIndexMean.toFixed(3)),
+    bucketShare: {
+      good:       Number(cq.corpus.bucketShare.good.toFixed(2)),
+      acceptable: Number(cq.corpus.bucketShare.acceptable.toFixed(2)),
+      poor:       Number(cq.corpus.bucketShare.poor.toFixed(2)),
+    },
+    weakestCorpusMetrics: cq.corpus.weakestCorpusMetrics.map(m => ({ metric: m.metric, mean: Number(m.mean.toFixed(2)) })),
+    docsAnalyzed: cq.perDoc.length,
+  };
+}
+
 // ============================================================
 // Section generators — each follows the exact same pattern:
 // build input → call LLM → strip fences → length check → return
@@ -647,6 +665,30 @@ async function generateChunkStrategyRationale(state: ScannerState): Promise<stri
   }
 }
 
+async function generateChunkQualityNarrative(state: ScannerState): Promise<string> {
+  try {
+    if (state.chunkQuality.perDoc.length === 0) {
+      return sectionPlaceholder("No chunk quality data available for this scan.");
+    }
+    const input = buildChunkQualityInput(state);
+    const prompt = chunkQualityNarrativePrompt(input);
+    const response = await complete(prompt, { temperature: 0.3, maxTokens: 700 });
+    const cleaned = response
+      .trim()
+      .replace(/^```[a-z]*\n?/, "")
+      .replace(/\n?```$/, "")
+      .trim();
+    if (cleaned.length < 100) {
+      logger.warn("Narrative section too short", { section: "chunkQuality" });
+      return sectionPlaceholder("LLM returned an empty or too-short response.");
+    }
+    return cleaned;
+  } catch (e) {
+    logger.warn("Narrative section failed", { section: "chunkQuality", error: String(e) });
+    return sectionPlaceholder(`LLM call failed: ${String(e).slice(0, 100)}`);
+  }
+}
+
 async function generateParserReliability(state: ScannerState): Promise<string> {
   try {
     const input = buildParserReliabilityInput(state);
@@ -725,6 +767,7 @@ const SECTION_TITLES = [
   "Version Pair Signal Decomposition",
   "Requirement Extraction Quality",
   "Chunk Strategy Rationale",
+  "Chunk Quality Profile",
   "Parser Reliability",
   "Reference Graph Interpretation",
   "RAG Readiness Synthesis",
@@ -777,7 +820,7 @@ export async function runNarrative(
     return;
   }
 
-  logger.info("Generating narrative report (7 sequential LLM calls)...", {
+  logger.info("Generating narrative report (8 sequential LLM calls)...", {
     path: narrativePath,
   });
 
@@ -787,6 +830,7 @@ export async function runNarrative(
     await generateVersionPairDecomposition(state),
     await generateRequirementQuality(state),
     await generateChunkStrategyRationale(state),
+    await generateChunkQualityNarrative(state),
     await generateParserReliability(state),
     await generateReferenceGraphInterpretation(state),
     await generateRagSynthesis(state, ollamaAvailable),
