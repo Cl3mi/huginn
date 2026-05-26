@@ -357,7 +357,7 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
           <div class="card-title">Pipeline Phases</div>
           <div class="progress-wrap">
             <div class="progress-label">
-              <span id="progress-text">0 of 9 phases complete</span>
+              <span id="progress-text">0 of 10 phases complete</span>
               <span id="progress-pct">0%</span>
             </div>
             <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
@@ -494,12 +494,13 @@ const PHASE_NAMES = [
   {name:'1-harvest',label:'Harvest'},
   {name:'2-parse',label:'Parse'},
   {name:'3-projection',label:'Projection'},
-  {name:'4-fingerprint',label:'Fingerprint'},
-  {name:'5-cluster',label:'Cluster'},
-  {name:'6-references',label:'References'},
-  {name:'7-requirements',label:'Requirements'},
-  {name:'8-validate',label:'Validate'},
-  {name:'9-report',label:'Report'},
+  {name:'4-chunk-quality',label:'Chunk Quality'},
+  {name:'5-fingerprint',label:'Fingerprint'},
+  {name:'6-cluster',label:'Cluster'},
+  {name:'7-references',label:'References'},
+  {name:'8-requirements',label:'Requirements'},
+  {name:'9-validate',label:'Validate'},
+  {name:'10-report',label:'Report'},
 ];
 
 function showScreen(name) {
@@ -1336,9 +1337,9 @@ function connectSse() {
       const p = state.phases.find(x => x.name === event.phase);
       if (p) { p.status = 'done'; p.durationMs = event.durationMs; }
       state.completedPhaseCount++;
-      const pct = Math.round((state.completedPhaseCount / 9) * 100);
+      const pct = Math.round((state.completedPhaseCount / 10) * 100);
       document.getElementById('progress-fill').style.width = pct + '%';
-      document.getElementById('progress-text').textContent = state.completedPhaseCount + ' of 9 phases complete';
+      document.getElementById('progress-text').textContent = state.completedPhaseCount + ' of 10 phases complete';
       document.getElementById('progress-pct').textContent = pct + '%';
       renderPhaseList('phase-list');
 
@@ -1402,7 +1403,7 @@ function updateTopbarRunning(phaseIndex) {
   const dot = document.getElementById('topbar-dot');
   const label = document.getElementById('topbar-label');
   dot.style.background = 'var(--warning)';
-  label.textContent = 'Running — Phase ' + (phaseIndex + 1) + ' of 9';
+  label.textContent = 'Running — Phase ' + (phaseIndex + 1) + ' of 10';
   label.style.color = 'var(--warning)';
 }
 
