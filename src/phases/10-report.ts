@@ -251,6 +251,11 @@ function serializeState(state: ScannerState): unknown {
     consistencyChecks: state.consistencyChecks,
     tokenProjection:    state.ingestionProjections,
     corpusTokenSummary: state.corpusIngestionSummary,
+    chunkQuality: {
+      perDoc: state.chunkQuality.perDoc,
+      corpus: state.chunkQuality.corpus,
+      generatedAt: state.chunkQuality.generatedAt.toISOString(),
+    },
     boilerplateDiscovery: {
       patterns: state.discoveredBoilerplatePatterns,
       summary: {
