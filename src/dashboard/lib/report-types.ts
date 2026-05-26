@@ -1,4 +1,4 @@
-// Canonical types matching the actual serialized JSON from src/phases/9-report.ts
+// Canonical types matching the actual serialized JSON from src/phases/10-report.ts
 // Do NOT invent fields — every field here maps 1:1 to the serialized output.
 
 export interface ReportData {

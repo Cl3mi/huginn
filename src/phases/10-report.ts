@@ -4,7 +4,7 @@ import { promisify } from "util";
 import type { ScannerState } from "../state.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
-import { runNarrative } from "./9-narrative.ts";
+import { runNarrative } from "./10-narrative.ts";
 import { writeDebugReport } from "../debug/report.ts";
 
 const writeFileAsync = promisify(writeFile);

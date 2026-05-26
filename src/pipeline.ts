@@ -11,12 +11,12 @@ import { runHarvest } from "./phases/1-harvest.ts";
 import { runParse } from "./phases/2-parse.ts";
 import { runProjection } from "./phases/3-projection.ts";
 import { runChunkQuality } from "./phases/4-chunk-quality.ts";
-import { runFingerprint } from "./phases/4-fingerprint.ts";
-import { runCluster } from "./phases/5-cluster.ts";
-import { runReferences } from "./phases/6-references.ts";
-import { runRequirements } from "./phases/7-requirements.ts";
-import { runValidate } from "./phases/8-validate.ts";
-import { runReport } from "./phases/9-report.ts";
+import { runFingerprint } from "./phases/5-fingerprint.ts";
+import { runCluster } from "./phases/6-cluster.ts";
+import { runReferences } from "./phases/7-references.ts";
+import { runRequirements } from "./phases/8-requirements.ts";
+import { runValidate } from "./phases/9-validate.ts";
+import { runReport } from "./phases/10-report.ts";
 import { randomUUID } from "crypto";
 import { readdirSync } from "fs";
 import type { SseEvent } from "./server/sse.ts";
@@ -93,12 +93,12 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     { name: "2-parse",        fn: () => runParse(state),                  idx: 1 },
     { name: "3-projection",   fn: () => runProjection(state),             idx: 2 },
     { name: "4-chunk-quality", fn: () => runChunkQuality(state, ollamaOk), idx: 3 },
-    { name: "4-fingerprint",  fn: () => runFingerprint(state, embedAvailable),  idx: 4 },
-    { name: "5-cluster",      fn: () => runCluster(state),                idx: 5 },
-    { name: "6-references",   fn: () => runReferences(state, ollamaOk),   idx: 6 },
-    { name: "7-requirements", fn: () => runRequirements(state, ollamaOk), idx: 7 },
-    { name: "8-validate",     fn: () => runValidate(state),               idx: 8 },
-    { name: "9-report",       fn: () => runReport(state, ollamaOk),       idx: 9 },
+    { name: "5-fingerprint",  fn: () => runFingerprint(state, embedAvailable),  idx: 4 },
+    { name: "6-cluster",      fn: () => runCluster(state),                idx: 5 },
+    { name: "7-references",   fn: () => runReferences(state, ollamaOk),   idx: 6 },
+    { name: "8-requirements", fn: () => runRequirements(state, ollamaOk), idx: 7 },
+    { name: "9-validate",     fn: () => runValidate(state),               idx: 8 },
+    { name: "10-report",      fn: () => runReport(state, ollamaOk),       idx: 9 },
   ];
 
   // Emit a stats snapshot using state populated so far. Each phase that adds
@@ -112,15 +112,15 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
       evt.parsed = state.parsed.filter(p => p.parseSuccess).length;
     }
     // cluster computes pairs and version pairs
-    if (after === "5-cluster" || after === "6-references" || after === "7-requirements" || after === "8-validate" || after === "9-report") {
+    if (after === "6-cluster" || after === "7-references" || after === "8-requirements" || after === "9-validate" || after === "10-report") {
       const eligible = state.parsed.filter(p => p.parseSuccess && p.charCount >= 200).length;
       evt.pairsScored = eligible > 1 ? (eligible * (eligible - 1)) / 2 : 0;
       evt.versionPairs = state.versionPairs.filter(p => p.confidence === "HIGH").length;
     }
-    if (after === "6-references" || after === "7-requirements" || after === "8-validate" || after === "9-report") {
+    if (after === "7-references" || after === "8-requirements" || after === "9-validate" || after === "10-report") {
       evt.references = state.references.length;
     }
-    if (after === "7-requirements" || after === "8-validate" || after === "9-report") {
+    if (after === "8-requirements" || after === "9-validate" || after === "10-report") {
       evt.requirements = state.requirements.length;
     }
     onProgress(evt);

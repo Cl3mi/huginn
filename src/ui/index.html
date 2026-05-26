@@ -312,7 +312,7 @@ label{display:block;font-size:.875rem;font-weight:500;color:var(--text-secondary
             </div>
             <div class="field">
               <label>Embed model</label>
-              <div class="field-hint" id="active-embed-model-display" style="font-family:var(--font-mono);color:var(--text-primary);padding:.4rem 0;">nomic-embed-text</div>
+              <div class="field-hint" id="active-embed-model-display" style="font-family:var(--font-mono);color:var(--text-primary);padding:.4rem 0;">bge-m3</div>
               <div class="field-hint">Fixed; swapping would invalidate prior scan comparisons.</div>
             </div>
             <div class="field">
@@ -727,7 +727,7 @@ function closeWizardSse() {
 // Tracks the chat model currently active on the server (set by setup state).
 // Read for display in the scan-config card and the scan-info grid.
 let activeChatModel = null;
-const ACTIVE_EMBED_MODEL = "nomic-embed-text"; // fixed by design (see Task 4 spec)
+const ACTIVE_EMBED_MODEL = "bge-m3"; // fixed by design (see Task 4 spec)
 
 function setActiveChatModel(modelId) {
   activeChatModel = modelId;
