@@ -706,6 +706,46 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
     push("");
   }
 
+  // ── Chunk Quality ─────────────────────────────────────────────────────────
+  const cq = state.chunkQuality;
+  if (cq.perDoc.length > 0) {
+    push("## Chunk Quality", "");
+    const bs = cq.corpus.bucketShare;
+    push(
+      `Token-weighted chunk quality: **${cq.corpus.tokenWeightedIndexMean.toFixed(2)}** ` +
+      `(good ${(bs.good * 100).toFixed(0)}%, acceptable ${(bs.acceptable * 100).toFixed(0)}%, poor ${(bs.poor * 100).toFixed(0)}%)`,
+      "",
+    );
+
+    if (cq.corpus.worstDocsByP10.length > 0) {
+      push("### Worst documents (by p10 chunk index)", "");
+      push("| Document | p10 | Primary weakness |");
+      push("|---|---|---|");
+      for (const d of cq.corpus.worstDocsByP10) {
+        push(`| ${d.docId} | ${d.p10.toFixed(2)} | ${d.primaryWeakness} |`);
+      }
+      push("");
+    }
+
+    if (cq.corpus.weakestCorpusMetrics.length > 0) {
+      push("### Weakest corpus metrics", "");
+      push("| Metric | Mean |");
+      push("|---|---|");
+      for (const m of cq.corpus.weakestCorpusMetrics) {
+        push(`| ${m.metric} | ${m.mean.toFixed(2)} |`);
+      }
+      push("");
+    }
+
+    if (cq.corpus.totalChunksEmbedded < cq.corpus.totalChunks) {
+      push(
+        `> Note: budget=${cq.corpus.budgetMode} — ` +
+        `${cq.corpus.totalChunksEmbedded}/${cq.corpus.totalChunks} chunks embedded for Tier 2 metrics`,
+        "",
+      );
+    }
+  }
+
   // Consistency checks
   push("## Consistency Check Results", "");
   push("| Check | Status | Value | Severity | Notes |");
