@@ -65,7 +65,7 @@ export async function renderHtml(reportPath: string, inlineAssets = true): Promi
     throw new Error(`Report validation failed:\n${validation.errors.map((e) => `  - ${e}`).join('\n')}`);
   }
 
-  const [header, kpiCards, qualityGauge, docDistribution, fileTree, versionAnalysis, requirementsLandscape, referenceGraph, parseHealth, ragDecisions, footer] =
+  const [header, kpiCards, qualityGauge, docDistribution, fileTree, versionAnalysis, requirementsLandscape, chunkQuality, referenceGraph, parseHealth, ragDecisions, footer] =
     await Promise.all([
       components.renderHeader(reportData),
       components.renderKpiCards(reportData),
@@ -74,13 +74,14 @@ export async function renderHtml(reportPath: string, inlineAssets = true): Promi
       components.renderFileTree(reportData),
       components.renderVersionAnalysis(reportData),
       components.renderRequirementsLandscape(reportData),
+      components.renderChunkQuality(reportData),
       components.renderReferenceGraph(reportData),
       components.renderParseHealth(reportData),
       components.renderRagDecisions(reportData),
       components.renderFooter(reportData),
     ]);
 
-  const bodyContent = [header, kpiCards, qualityGauge, docDistribution, fileTree, versionAnalysis, requirementsLandscape, referenceGraph, parseHealth, ragDecisions, footer].join(
+  const bodyContent = [header, kpiCards, qualityGauge, docDistribution, fileTree, versionAnalysis, requirementsLandscape, chunkQuality, referenceGraph, parseHealth, ragDecisions, footer].join(
     '\n',
   );
 

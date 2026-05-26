@@ -90,6 +90,44 @@ export interface ReportData {
     interpretation: string;
   }>;
 
+  chunkQuality?: {
+    perDoc: Array<{
+      docId: string;
+      chunkCountTotal: number;
+      chunkCountEmbedded: number;
+      budgetMode: 'fast' | 'normal' | 'full';
+      budgetCapHit: boolean;
+      tier1: {
+        sizeFit:                 { mean: number; p10: number };
+        sentenceBoundaryQuality: { mean: number; p10: number };
+        crossReferenceCut:       { mean: number; p10: number };
+        tableCut:                { mean: number | null; p10: number | null };
+        headerPollution:         { mean: number; p10: number };
+        contentScore:            { mean: number; p10: number };
+      };
+      tier2: {
+        coherenceDrop:      { mean: number; p10: number } | null;
+        intraChunkCohesion: { mean: number; p10: number; nMeasurable: number } | null;
+        centroidDistance:   { mean: number; p10: number };
+      } | null;
+      chunkQualityIndex: { mean: number; p10: number };
+      bucketCounts: { good: number; acceptable: number; poor: number };
+      weakestLinks: string[];
+    }>;
+    corpus: {
+      budgetMode: 'fast' | 'normal' | 'full';
+      totalChunks: number;
+      totalChunksEmbedded: number;
+      tokenWeightedIndexMean: number;
+      bucketShare: { good: number; acceptable: number; poor: number };
+      worstDocsByP10: Array<{ docId: string; p10: number; primaryWeakness: string }>;
+      weakestCorpusMetrics: Array<{ metric: string; mean: number }>;
+      embeddingsCacheStats: { uniqueChunks: number; cacheHits: number; cacheMisses: number };
+      bgeM3NormalizationCheck: { sampleSize: number; allNormalized: boolean; maxDeviation: number };
+    };
+    generatedAt?: string;
+  };
+
   llmValidation?: {
     sampledDocIds: string[];
     regexVsLlmDelta: number;

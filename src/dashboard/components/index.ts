@@ -9,4 +9,5 @@ export { renderReferenceGraph } from './reference-graph.js';
 export { renderParseHealth } from './parse-health.js';
 export { renderRagDecisions } from './rag-decisions.js';
 export { renderFileTree } from './file-tree.js';
+export { renderChunkQuality } from './chunk-quality.js';
 export { renderFooter } from './footer.js';
