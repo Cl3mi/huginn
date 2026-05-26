@@ -401,6 +401,58 @@ export async function runValidate(state: ScannerState): Promise<void> {
     ));
   }
 
+  // ── Chunk Quality checks ────────────────────────────────────────────────
+  const cq = state.chunkQuality;
+  const totalDocs = cq.perDoc.length;
+
+  if (totalDocs > 0) {
+    const idxMean = cq.corpus.tokenWeightedIndexMean;
+    checks.push({
+      checkName: "chunkQualityIndex",
+      passed: idxMean >= 0.5,
+      value: idxMean,
+      threshold: 0.5,
+      severity: idxMean < 0.35 ? "CRITICAL" : idxMean < 0.5 ? "WARNING" : "INFO",
+      interpretation: clamp(
+        `Token-weighted chunk quality is ${(idxMean * 100).toFixed(0)}% (good=${(cq.corpus.bucketShare.good * 100).toFixed(0)}%)`,
+      ),
+    });
+
+    const sbqMeans = cq.perDoc.map(d => d.tier1.sentenceBoundaryQuality.mean);
+    const sbqCorpusMean = sbqMeans.reduce((s, x) => s + x, 0) / sbqMeans.length;
+    checks.push({
+      checkName: "chunkBoundaryHealth",
+      passed: sbqCorpusMean >= 0.6,
+      value: sbqCorpusMean,
+      threshold: 0.6,
+      severity: "INFO",
+      interpretation: clamp(
+        sbqCorpusMean < 0.6
+          ? `Sentence boundaries weak (${(sbqCorpusMean * 100).toFixed(0)}%) — chunker upgrade may help`
+          : `Sentence boundaries healthy (${(sbqCorpusMean * 100).toFixed(0)}%)`,
+      ),
+    });
+
+    const cdMeans = cq.perDoc
+      .map(d => d.tier2?.coherenceDrop?.mean)
+      .filter((v): v is number => typeof v === "number");
+    if (cdMeans.length > 0) {
+      const cdCorpusMean = cdMeans.reduce((s, x) => s + x, 0) / cdMeans.length;
+      checks.push({
+        checkName: "chunkCoherenceHealth",
+        passed: cdCorpusMean >= 0.55,
+        value: cdCorpusMean,
+        threshold: 0.55,
+        severity: cdCorpusMean < 0.55 ? "WARNING" : "INFO",
+        interpretation: clamp(
+          cdCorpusMean < 0.55
+            ? `Coherence between adjacent chunks low (${(cdCorpusMean * 100).toFixed(0)}%) — chunker may be cutting mid-thought`
+            : `Adjacent-chunk coherence healthy (${(cdCorpusMean * 100).toFixed(0)}%)`,
+        ),
+      });
+    }
+  }
+
   state.consistencyChecks = checks.map((c) => ({
     ...c,
     interpretation: clamp(c.interpretation),
