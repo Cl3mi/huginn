@@ -110,10 +110,18 @@ $ComposeFile = Join-Path $ScriptDir "docker-compose.yml"
 
 Write-Host "Pulling latest Huginn image (may take a few minutes on first run)..."
 docker compose -f $ComposeFile pull --quiet
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Failed to pull the Huginn image. Check your internet connection and license." -ForegroundColor Red
+    exit 1
+}
 
 Write-Host "Starting Huginn..."
 $env:DOCUMENTS_PATH = $DocsPath
 docker compose -f $ComposeFile up -d
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "ERROR: Failed to start Huginn. Run 'docker compose -f '$ComposeFile' logs' for details." -ForegroundColor Red
+    exit 1
+}
 
 Write-Host ""
 Write-Host "✓ Huginn is running!" -ForegroundColor Green
