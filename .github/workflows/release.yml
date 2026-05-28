@@ -30,7 +30,7 @@ jobs:
         with:
           context: .
           file: Dockerfile.release
-          push: true
+          push: ${{ github.ref == 'refs/heads/main' }}
           tags: ghcr.io/${{ github.repository_owner }}/huginn:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
