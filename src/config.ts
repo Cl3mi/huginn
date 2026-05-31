@@ -3,7 +3,6 @@ export const CONFIG = {
   reportOutput: process.env["REPORT_OUTPUT"] || "/reports",
   serverPort: parseInt(process.env["HUGINN_SERVER_PORT"] || "3000", 10),
 
-  tikaUrl: process.env["TIKA_URL"] || "http://tika:9998",
   ollamaUrl: process.env["OLLAMA_URL"] || "http://ollama:11434",
   // Lazy getters so per-scan process.env writes in pipeline.ts take effect
   get ollamaEmbedModel() { return process.env["OLLAMA_EMBED_MODEL"] || "bge-m3"; },
@@ -13,7 +12,6 @@ export const CONFIG = {
   ollamaEmbedTimeoutMs: parseInt(process.env["OLLAMA_EMBED_TIMEOUT_MS"] || "120000", 10),
   ollamaCompleteTimeoutMs: parseInt(process.env["OLLAMA_COMPLETE_TIMEOUT_MS"] || "60000", 10),
   get llmSampleRate() { return parseFloat(process.env["LLM_SAMPLE_RATE"] || "0.10"); },
-  parserDivergenceThreshold: 0.20,  // 20% char count difference triggers alert
   scannedPdfCharsPerPage: 100,      // below this = likely scanned
   ocrRequiredCharsPerPage: 50,      // below this = definitely needs OCR
   versionPairMinScore: 7,           // out of 12 for HIGH confidence

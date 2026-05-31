@@ -1,13 +1,4 @@
 services:
-  tika:
-    image: apache/tika:3.0.0.0
-    hostname: tika
-    extra_hosts:
-      - "tika:127.0.0.1"
-    environment:
-      - JAVA_OPTS=-Djava.net.preferIPv4Stack=true
-    restart: unless-stopped
-
   ollama:
     image: ollama/ollama:latest
     hostname: ollama
@@ -47,8 +38,6 @@ services:
   scanner:
     image: ghcr.io/cl3mi/huginn:latest
     depends_on:
-      tika:
-        condition: service_started
       ollama:
         condition: service_healthy
       ollama-init:
@@ -59,7 +48,6 @@ services:
       - ${DOCUMENTS_PATH}:/documents:ro
       - huginn_reports:/reports
     environment:
-      - TIKA_URL=http://tika:9998
       - OLLAMA_URL=http://ollama:11434
       - OLLAMA_EMBED_MODEL=bge-m3
       - DOCUMENTS_ROOT=/documents

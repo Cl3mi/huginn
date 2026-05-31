@@ -1,11 +1,9 @@
 import { createInitialState } from "./state.ts";
-import { CONFIG } from "./config.ts";
 import { resolveProfile } from "./profiles/index.ts";
 import { COMPANY_FILE_PATH, loadCompanyIdentity } from "./utils/company-identity.ts";
 import { logger, setPhase, setProgressCallback } from "./utils/logger.ts";
 import { loadDebugSettings } from "./debug/settings.ts";
 import { stat } from "fs/promises";
-import { checkTikaHealth } from "./parsers/tika.ts";
 import { checkOllamaHealth } from "./llm/ollama.ts";
 import { runHarvest } from "./phases/1-harvest.ts";
 import { runParse } from "./phases/2-parse.ts";
@@ -63,10 +61,6 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
   if (!rootStat.isDirectory()) throw new Error(`Not a directory: ${folder}`);
 
   setPhase("startup");
-  const tikaOk = await checkTikaHealth();
-  if (!tikaOk) {
-    logger.warn("Tika is not reachable — PDF parsing will be skipped", { url: CONFIG.tikaUrl });
-  }
 
   const { ok: ollamaOk, modelsAvailable } = await checkOllamaHealth();
   const embedModel = settings.embedModel;
