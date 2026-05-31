@@ -144,6 +144,50 @@ load_or_pick_folder() {
   done
 }
 
+# ─── Pull with spinner ────────────────────────────────────────────────────────
+
+run_pull_with_spinner() {
+  local compose_file="$1"
+  local log
+  log="$(mktemp)"
+
+  echo "This usually takes 3–5 minutes on first run."
+
+  docker compose -f "$compose_file" pull >"$log" 2>&1 &
+  local pull_pid=$!
+
+  local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+  local frame_idx=0
+  local elapsed=0
+
+  if [[ -t 1 ]]; then
+    while kill -0 "$pull_pid" 2>/dev/null; do
+      local mins=$(( elapsed / 60 ))
+      local secs=$(( elapsed % 60 ))
+      printf "\rDownloading Huginn... %dm %02ds  %s" "$mins" "$secs" "${frames[$frame_idx]}"
+      frame_idx=$(( (frame_idx + 1) % ${#frames[@]} ))
+      sleep 1
+      elapsed=$(( elapsed + 1 ))
+    done
+    printf "\r%-60s\r" ""
+  else
+    wait "$pull_pid" || true
+  fi
+
+  local exit_code=0
+  wait "$pull_pid" 2>/dev/null || exit_code=$?
+
+  if [[ $exit_code -ne 0 ]]; then
+    echo "ERROR: Download failed. Details:"
+    cat "$log"
+    rm -f "$log"
+    exit 1
+  fi
+
+  echo "✓ Download complete."
+  rm -f "$log"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 main() {
@@ -164,8 +208,7 @@ main() {
   echo ""
   export DOCUMENTS_PATH="$docs_path"
 
-  echo "Pulling latest Huginn image (may take a few minutes on first run)..."
-  docker compose -f "$SCRIPT_DIR/docker-compose.yml" pull --quiet
+  run_pull_with_spinner "$SCRIPT_DIR/docker-compose.yml"
 
   echo "Starting Huginn..."
   docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d
