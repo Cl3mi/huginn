@@ -1,17 +1,15 @@
-import { execFile } from "child_process";
-import { promisify } from "util";
 import type { ScannerState, ParsedDocument, HeadingNode, FileEntry, ChunkStrategyReasoning, DateSignals } from "../state.ts";
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
 import { estimateTokens } from "../utils/tokenizer.ts";
 import { findAllMatches, PATTERNS } from "../utils/regex-patterns.ts";
-import { parseWithTika } from "../parsers/tika.ts";
-import { parseWithOfficeParser } from "../parsers/officeparser.ts";
-import { compareParserResults } from "../parsers/parser-compare.ts";
+import { parsePdf } from "../parsers/pdf-parser.ts";
+import { parseDocx } from "../parsers/docx-parser.ts";
+import { parseXlsx } from "../parsers/xlsx-parser.ts";
+import { parsePptx } from "../parsers/pptx-parser.ts";
+import type { NativeParseResult } from "../parsers/native-result.ts";
 import { ProjectionAccumulator, projectDocument } from "./3-projection.ts";
 import { collectOriginSignals, classifyOrigin, type DocxAuthorMeta } from "../utils/origin-classifier.ts";
-
-const execFileAsync = promisify(execFile);
 
 export let _lastAccumulator: ProjectionAccumulator | null = null;
 
@@ -61,11 +59,6 @@ function extractHeadingsFromNumbered(text: string): string[] {
   return headings;
 }
 
-// XHTML h1-h6 tags from Tika
-function headingsFromXhtml(xhtmlHeadings: string[]): string[] {
-  return xhtmlHeadings.filter((h) => h.length >= 3 && h.length <= 200);
-}
-
 // Heuristic — short lines without terminal period, followed by longer content
 function extractHeadingsFromHeuristic(text: string): string[] {
   const headings: string[] = [];
@@ -87,36 +80,6 @@ function extractHeadingsFromHeuristic(text: string): string[] {
   return headings;
 }
 
-// Strategy 4: DOCX XML font-size parsing — catches manually formatted headings that don't use Word Heading styles
-async function extractHeadingsFromDocxXml(absolutePath: string): Promise<string[]> {
-  try {
-    const { stdout } = await execFileAsync(
-      "unzip",
-      ["-p", absolutePath, "word/document.xml"],
-      { maxBuffer: 10 * 1024 * 1024, timeout: 10000 }
-    );
-    // Parse <w:p> paragraphs with font size >= 28 half-points (>=14pt)
-    const headings: string[] = [];
-    const paraRe = /<w:p[ >][\s\S]*?<\/w:p>/g;
-    let pm: RegExpExecArray | null;
-    while ((pm = paraRe.exec(stdout)) !== null) {
-      const para = pm[0];
-      const szMatch = para.match(/<w:sz[^>]*w:val="(\d+)"/);
-      if (!szMatch) continue;
-      const sz = parseInt(szMatch[1] ?? "0", 10);
-      if (sz < 28) continue;
-      const text = para.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      if (text.length >= 4 && text.length <= 120) {
-        headings.push(text);
-      }
-    }
-    return headings;
-  } catch {
-    // unzip not available or parse failed — graceful skip
-    return [];
-  }
-}
-
 // Extract date from filename — supports YYYY-MM-DD, YYYY_MM_DD, YYYYMMDD
 function extractDateFromFilename(filename: string): Date | null {
   const m8 = filename.match(/(\d{4})[-_](\d{2})[-_](\d{2})/);
@@ -130,51 +93,6 @@ function extractDateFromFilename(filename: string): Date | null {
     if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= 2030) return d;
   }
   return null;
-}
-
-// Extract dcterms:modified from DOCX core.xml
-async function extractDateFromDocxCoreXml(absolutePath: string): Promise<Date | null> {
-  try {
-    const { stdout } = await execFileAsync(
-      "unzip",
-      ["-p", absolutePath, "docProps/core.xml"],
-      { maxBuffer: 100 * 1024, timeout: 5000 }
-    );
-    const m = stdout.match(/<dcterms:modified[^>]*>([^<]+)<\/dcterms:modified>/);
-    if (m?.[1]) {
-      const d = new Date(m[1]);
-      if (!isNaN(d.getTime())) return d;
-    }
-  } catch {
-    // not a DOCX or unzip failed
-  }
-  return null;
-}
-
-// Extract author and company metadata from DOCX — reads docProps/core.xml and docProps/app.xml
-async function extractDocxAuthorMeta(absolutePath: string): Promise<DocxAuthorMeta> {
-  const meta: DocxAuthorMeta = {};
-  try {
-    const { stdout: coreXml } = await execFileAsync(
-      "unzip",
-      ["-p", absolutePath, "docProps/core.xml"],
-      { maxBuffer: 100 * 1024, timeout: 5000 },
-    );
-    const creator = coreXml.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/)?.[1]?.trim();
-    const lastBy  = coreXml.match(/<cp:lastModifiedBy[^>]*>([^<]+)<\/cp:lastModifiedBy>/)?.[1]?.trim();
-    if (creator) meta.creator = creator;
-    if (lastBy)  meta.lastModifiedBy = lastBy;
-  } catch { /* unzip failed or not a DOCX — skip */ }
-  try {
-    const { stdout: appXml } = await execFileAsync(
-      "unzip",
-      ["-p", absolutePath, "docProps/app.xml"],
-      { maxBuffer: 100 * 1024, timeout: 5000 },
-    );
-    const company = appXml.match(/<Company>([^<]+)<\/Company>/)?.[1]?.trim();
-    if (company) meta.company = company;
-  } catch { /* no app.xml — skip */ }
-  return meta;
 }
 
 // Extract revision/stand date from text — searches first 3000 chars where metadata typically appears
@@ -197,7 +115,7 @@ function extractDateFromText(text: string): { date: Date; source: "stand_pattern
 async function buildDateSignals(
   file: FileEntry,
   text: string,
-  options: { docxPath?: string; tikaMetadata?: Record<string, string> } = {}
+  options: { metadata?: Record<string, string>; extension?: string } = {}
 ): Promise<DateSignals> {
   const mtime = file.modifiedAt.toISOString().slice(0, 10);
   const ctime = file.createdAt.toISOString().slice(0, 10);
@@ -206,20 +124,16 @@ async function buildDateSignals(
   let documentInternalDate: string | undefined;
   let internalDateSource: DateSignals["internalDateSource"] | undefined;
 
-  // DOCX core.xml — most reliable for DOCX files
-  if (options.docxPath) {
-    const d = await extractDateFromDocxCoreXml(options.docxPath);
-    if (d) { documentInternalDate = d.toISOString().slice(0, 10); internalDateSource = "docx_core_xml"; }
-  }
-
-  // PDF creation date from Tika metadata
-  if (!documentInternalDate && options.tikaMetadata) {
-    const raw = options.tikaMetadata["Creation-Date"]
-      ?? options.tikaMetadata["created"]
-      ?? options.tikaMetadata["dcterms:created"];
+  // Parser-provided metadata date (PDF info dict, DOCX/XLSX/PPTX docProps/core.xml)
+  if (!documentInternalDate && options.metadata) {
+    const raw = options.metadata["Creation-Date"];
     if (raw) {
       const d = new Date(raw);
-      if (!isNaN(d.getTime())) { documentInternalDate = d.toISOString().slice(0, 10); internalDateSource = "pdf_metadata"; }
+      if (!isNaN(d.getTime())) {
+        documentInternalDate = d.toISOString().slice(0, 10);
+        // Preserve docx_core_xml source for DOCX (same semantic as before)
+        internalDateSource = options.extension === ".docx" ? "docx_core_xml" : "pdf_metadata";
+      }
     }
   }
 
@@ -235,7 +149,6 @@ async function buildDateSignals(
     if (result) { documentInternalDate = result.date.toISOString().slice(0, 10); internalDateSource = result.source; }
   }
 
-  // bestDate: prefer document-internal date, fall back to ctime
   const bestDate = documentInternalDate ?? ctime;
 
   return {
@@ -248,26 +161,20 @@ async function buildDateSignals(
   };
 }
 
-// Majority vote across up to 4 strategies (DOCX XML is 4th)
 function mergeHeadings(
   numbered: string[],
-  xhtml: string[],
+  structure: string[],  // <h1>-<h6> (DOCX), multi-signal (PDF), title placeholders (PPTX)
   heuristic: string[],
-  docxXml: string[] = []
 ): { headings: string[]; strategy: string } {
-  // Count votes: each strategy with >3 results gets 1 vote
   const candidates: Array<{ list: string[]; name: string }> = [
-    { list: xhtml, name: "xhtml" },
-    { list: numbered, name: "numbered" },
-    { list: docxXml, name: "docx_xml" },
+    { list: structure, name: "structure" },
+    { list: numbered,  name: "numbered" },
     { list: heuristic, name: "heuristic" },
   ];
-  // XHTML and DOCX XML come from markup — trust over inference
   for (const { list, name } of candidates) {
     if (list.length > 3) return { headings: list, strategy: name };
   }
-  // Fall back to union
-  const all = [...new Set([...numbered, ...xhtml, ...heuristic, ...docxXml])];
+  const all = [...new Set([...numbered, ...structure, ...heuristic])];
   return { headings: all, strategy: "union" };
 }
 
@@ -492,7 +399,6 @@ function buildOemDebugSignals(
 
 export async function runParse(state: ScannerState): Promise<void> {
   const t = logger.phaseStart("2-parse");
-  let tikaUnavailable = false;
 
   const projectionAcc = new ProjectionAccumulator();
 
@@ -501,12 +407,8 @@ export async function runParse(state: ScannerState): Promise<void> {
 
     try {
       if (CONFIG.officeExtensions.includes(file.extension as typeof CONFIG.officeExtensions[number])) {
-        parsed = await parseOfficeFile(file, tikaUnavailable);
+        parsed = await parseOfficeFile(file);
       } else if (CONFIG.pdfExtensions.includes(file.extension as typeof CONFIG.pdfExtensions[number])) {
-        if (tikaUnavailable) {
-          logger.warn("Tika unavailable, skipping PDF", { docId: file.id, path: file.path });
-          continue;
-        }
         parsed = await parsePdfFile(file);
       } else {
         logger.warn("Unsupported extension, skipping", { docId: file.id, ext: file.extension });
@@ -514,12 +416,6 @@ export async function runParse(state: ScannerState): Promise<void> {
       }
     } catch (e) {
       const errMsg = String(e);
-      // If Tika is unreachable, mark and continue
-      if (errMsg.includes("ECONNREFUSED") || errMsg.includes("fetch failed")) {
-        logger.error("Tika unreachable, will skip PDFs for rest of run", { error: errMsg });
-        tikaUnavailable = true;
-        continue;
-      }
       logger.warn("Parse failed for file, skipping", { docId: file.id, path: file.path, error: errMsg });
       continue;
     }
@@ -567,10 +463,11 @@ export async function runParse(state: ScannerState): Promise<void> {
 
   if (state.companyIdentity) {
     for (const doc of state.parsed) {
-      let docxMeta: DocxAuthorMeta | undefined;
-      if (doc.extension === ".docx") {
-        docxMeta = await extractDocxAuthorMeta(doc.absolutePath);
-      }
+      const docxMeta: DocxAuthorMeta | undefined = doc.extension === ".docx" ? {
+        ...(doc.parserMetadata?.["Author"]           ? { creator:        doc.parserMetadata["Author"] }           : {}),
+        ...(doc.parserMetadata?.["Last-Modified-By"] ? { lastModifiedBy: doc.parserMetadata["Last-Modified-By"] } : {}),
+        ...(doc.parserMetadata?.["Company"]          ? { company:        doc.parserMetadata["Company"] }          : {}),
+      } : undefined;
       const signals = collectOriginSignals(doc, state.companyIdentity, docxMeta, doc.pdfAuthorHint);
       const classification = classifyOrigin(signals);
       doc.originClassification = classification;
@@ -588,87 +485,73 @@ export async function runParse(state: ScannerState): Promise<void> {
   });
 }
 
-async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promise<ParsedDocument> {
-  const opResult = await parseWithOfficeParser(file.absolutePath);
-  const opText = normalizeWhitespace(opResult.text);
-  const opGarbled = isGarbledText(opText);
+async function parseOfficeFile(file: FileEntry): Promise<ParsedDocument> {
+  let result: NativeParseResult;
+  let parserUsed: ParsedDocument["parserUsed"];
 
-  // XLSX files have no meaningful heading structure — cell values like "5 days early" or
-  // "13 days late" would be falsely picked up by the numbered/heuristic strategies.
-  // Only trust Tika XHTML headings for XLSX (from named ranges or explicit headers).
-  const isXlsx = file.extension === ".xlsx";
-  const numberedHeadings = isXlsx ? [] : extractHeadingsFromNumbered(opText);
-  const heuristicHeadings = isXlsx ? [] : extractHeadingsFromHeuristic(opText);
-
-  const docxXmlHeadings = file.extension === ".docx"
-    ? await extractHeadingsFromDocxXml(file.absolutePath)
-    : [];
-
-  // Secondary: Tika for comparison and XHTML headings (skip if unavailable)
-  let tikaResult: Awaited<ReturnType<typeof parseWithTika>> | null = null;
-  let comparisonResult;
-  let tikaHeadings: string[] = [];
-
-  if (!tikaUnavailable) {
-    try {
-      tikaResult = await parseWithTika(file.absolutePath);
-      tikaHeadings = tikaResult.headingsFromXhtml;
-
-      comparisonResult = compareParserResults({
-        docId: file.id,
-        officeparserChars: opResult.charCount,
-        officeparserHeadings: numberedHeadings,
-        tikaChars: tikaResult.charCount,
-        tikaHeadings: tikaResult.headingsFromXhtml,
-      });
-    } catch {
-      // Tika comparison optional for Office files
-    }
+  if (file.extension === ".docx") {
+    result = await parseDocx(file.absolutePath);
+    parserUsed = "mammoth";
+  } else if (file.extension === ".xlsx") {
+    result = await parseXlsx(file.absolutePath);
+    parserUsed = "sheetjs";
+  } else if (file.extension === ".pptx") {
+    result = await parsePptx(file.absolutePath);
+    parserUsed = "pptx-native";
+  } else {
+    throw new Error(`Unsupported Office extension: ${file.extension}`);
   }
 
-  const { headings: finalHeadings } = mergeHeadings(numberedHeadings, tikaHeadings, heuristicHeadings, docxXmlHeadings);
+  const text = normalizeWhitespace(result.text);
+  const garbled = isGarbledText(text);
+
+  const isXlsx = file.extension === ".xlsx";
+  const numberedHeadings = isXlsx ? [] : extractHeadingsFromNumbered(text);
+  const heuristicHeadings = isXlsx ? [] : extractHeadingsFromHeuristic(text);
+  const { headings: finalHeadings } = mergeHeadings(
+    numberedHeadings,
+    result.headingsFromStructure,
+    heuristicHeadings,
+  );
   const headingNodes = buildHeadingTree(finalHeadings);
 
-  const sample = opText.slice(0, 2000);
-  // skip franc for short docs — franc result unreliable below 200 chars
-  const language = opResult.charCount >= 200 ? await detectLanguage(opText) : "und";
+  const sample = text.slice(0, 2000);
+  const language = result.charCount >= 200 ? await detectLanguage(text) : "und";
   const { oem: detectedOem, source: oemSource } = detectOem(sample, finalHeadings, file.pathSegments);
   const detectedDocType = classifyDocType(file.filename, finalHeadings, sample);
 
-  const dateSignals = await buildDateSignals(
-    file,
-    opText,
-    file.extension === ".docx" ? { docxPath: file.absolutePath } : {}
-  );
+  const dateSignals = await buildDateSignals(file, text, {
+    metadata: result.metadata,
+    extension: file.extension,
+  });
   const dateSource: ParsedDocument["dateSource"] =
     dateSignals.internalDateSource === "docx_core_xml" ? "docx_core_xml" :
-    dateSignals.internalDateSource === "pdf_metadata" ? "pdf_metadata" :
-    dateSignals.internalDateSource !== undefined ? "filename" :
+    dateSignals.internalDateSource === "pdf_metadata"  ? "pdf_metadata"  :
+    dateSignals.internalDateSource !== undefined        ? "filename"      :
     "mtime";
 
-  const charCount = opResult.charCount;
-  const parseSuccess = charCount > 100 && !opGarbled;
-  const tableCount = tikaResult?.tableCount ?? 0;
+  const charCount = result.charCount;
+  const parseSuccess = charCount > 100 && !garbled;
   const { strategy: recommendedChunkStrategy, reasoning: chunkStrategyReasoning } =
-    deriveChunkStrategyWithReasoning(file.extension, headingNodes, tableCount, "not_pdf");
+    deriveChunkStrategyWithReasoning(file.extension, headingNodes, result.tableCount, "not_pdf");
   const requirementMetadataReliable = deriveRequirementReliability(detectedDocType, file.extension);
 
   return {
     ...file,
     charCount,
-    tokenCountEstimate: estimateTokens(opText),
-    ...(tikaResult?.pageCount !== undefined ? { pageCount: tikaResult.pageCount } : {}),
+    tokenCountEstimate: estimateTokens(text),
+    ...(result.pageCount !== undefined ? { pageCount: result.pageCount } : {}),
     language,
     headings: headingNodes,
     hasNumberedHeadings: numberedHeadings.length > 2,
-    tableCount,
-    parserUsed: "officeparser",
-    ...(comparisonResult ? { parserComparisonResult: comparisonResult } : {}),
+    tableCount: result.tableCount,
+    parserUsed,
     isScannedPdf: false,
     isOcrRequired: false,
     pdfClassification: "not_pdf",
+    imageCount: result.imageCount,
     parseSuccess,
-    ...(!parseSuccess ? { parseFailureReason: opGarbled ? "garbled_encoding" as const : "empty_extraction" as const } : {}),
+    ...(!parseSuccess ? { parseFailureReason: garbled ? "garbled_encoding" as const : "empty_extraction" as const } : {}),
     dateSource,
     dateSignals,
     recommendedChunkStrategy,
@@ -677,35 +560,29 @@ async function parseOfficeFile(file: FileEntry, tikaUnavailable: boolean): Promi
     detectedOem,
     oemSource,
     ...(detectedDocType ? { detectedDocType } : {}),
-    // cached for downstream phases — avoids re-reading binary files
-    ...(!opGarbled && opText.length > 0 ? { textContent: opText.slice(0, 2_000_000) } : {}),
+    ...(!garbled && text.length > 0 ? { textContent: text.slice(0, 2_000_000) } : {}),
+    parserMetadata: result.metadata,
   };
 }
 
 async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
-  const tikaResult = await parseWithTika(file.absolutePath);
+  const result = await parsePdf(file.absolutePath);
 
-  // Capture author hint for origin classifier — not serialized
-  const pdfAuthorHint =
-    tikaResult.metadata["Author"] ??
-    tikaResult.metadata["dc:creator"] ??
-    tikaResult.metadata["meta:author"];
+  const pdfAuthorHint = result.metadata["Author"];
+  const text = normalizeWhitespace(result.text);
+  const garbled = isGarbledText(text);
 
-  const tikaText = normalizeWhitespace(tikaResult.text);
-  const tikaGarbled = isGarbledText(tikaText);
+  const pageCount = result.pageCount ?? 1;
+  const charsPerPage = result.charCount / pageCount;
 
-  const pageCount = tikaResult.pageCount ?? 1;
-  const charsPerPage = tikaResult.charCount / pageCount;
-
-  // Three-tier hybrid PDF classification
   let pdfClassification: ParsedDocument["pdfClassification"];
   let isOcrRequired: boolean;
   if (charsPerPage < 10) {
     pdfClassification = "fully_scanned";
     isOcrRequired = true;
-  } else if (charsPerPage < 200 && tikaResult.imageCount > pageCount) {
+  } else if (charsPerPage < 200 && result.imageCount > pageCount) {
     pdfClassification = "hybrid";
-    isOcrRequired = false; // partial OCR needed but flag separately
+    isOcrRequired = false;
   } else {
     pdfClassification = "native";
     isOcrRequired = false;
@@ -718,60 +595,58 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
       path: file.path,
       pdfClassification,
       charsPerPage: Math.round(charsPerPage),
-      imageCount: tikaResult.imageCount,
+      imageCount: result.imageCount,
     });
   }
 
-  const numberedHeadings = extractHeadingsFromNumbered(tikaText);
-  const heuristicHeadings = extractHeadingsFromHeuristic(tikaText);
+  const numberedHeadings = extractHeadingsFromNumbered(text);
+  const heuristicHeadings = extractHeadingsFromHeuristic(text);
   const { headings: finalHeadings } = mergeHeadings(
     numberedHeadings,
-    headingsFromXhtml(tikaResult.headingsFromXhtml),
-    heuristicHeadings
+    result.headingsFromStructure,
+    heuristicHeadings,
   );
   const headingNodes = buildHeadingTree(finalHeadings);
 
-  const sample = tikaText.slice(0, 2000);
-  // skip franc for short docs — franc result unreliable below 200 chars
-  const language = tikaResult.charCount >= 200 ? await detectLanguage(tikaText) : "und";
+  const sample = text.slice(0, 2000);
+  const language = result.charCount >= 200 ? await detectLanguage(text) : "und";
   const { oem: detectedOem, source: oemSource } = detectOem(sample, finalHeadings, file.pathSegments);
   const detectedDocType = classifyDocType(file.filename, finalHeadings, sample);
 
-  const dateSignals = await buildDateSignals(
-    file,
-    tikaText,
-    { tikaMetadata: tikaResult.metadata }
-  );
+  const dateSignals = await buildDateSignals(file, text, {
+    metadata: result.metadata,
+    extension: file.extension,
+  });
   const dateSource: ParsedDocument["dateSource"] =
     dateSignals.internalDateSource === "docx_core_xml" ? "docx_core_xml" :
-    dateSignals.internalDateSource === "pdf_metadata" ? "pdf_metadata" :
-    dateSignals.internalDateSource !== undefined ? "filename" :
+    dateSignals.internalDateSource === "pdf_metadata"  ? "pdf_metadata"  :
+    dateSignals.internalDateSource !== undefined        ? "filename"      :
     "mtime";
 
-  const charCount = tikaResult.charCount;
-  const parseSuccess = charCount > 100 && !tikaGarbled;
+  const charCount = result.charCount;
+  const parseSuccess = charCount > 100 && !garbled;
   const { strategy: recommendedChunkStrategy, reasoning: chunkStrategyReasoning } =
-    deriveChunkStrategyWithReasoning(file.extension, headingNodes, tikaResult.tableCount, pdfClassification);
+    deriveChunkStrategyWithReasoning(file.extension, headingNodes, result.tableCount, pdfClassification);
   const requirementMetadataReliable = deriveRequirementReliability(detectedDocType, file.extension);
 
   return {
     ...file,
     charCount,
-    tokenCountEstimate: estimateTokens(tikaText),
+    tokenCountEstimate: estimateTokens(text),
     pageCount,
     language,
     headings: headingNodes,
     hasNumberedHeadings: numberedHeadings.length > 2,
-    tableCount: tikaResult.tableCount,
-    parserUsed: "tika",
+    tableCount: result.tableCount,
+    parserUsed: "pdfjs",
     isScannedPdf,
     isOcrRequired,
     pdfClassification,
-    imageCount: tikaResult.imageCount,
-    scannedPageRatio: tikaResult.scannedPageRatio,
-    ...(tikaResult.scannedPageIndices.length > 0 ? { scannedPageIndices: tikaResult.scannedPageIndices } : {}),
+    imageCount: result.imageCount,
+    scannedPageRatio: result.scannedPageRatio,
+    ...(result.scannedPageIndices.length > 0 ? { scannedPageIndices: result.scannedPageIndices } : {}),
     parseSuccess,
-    ...(!parseSuccess ? { parseFailureReason: tikaGarbled ? "garbled_encoding" as const : "empty_extraction" as const } : {}),
+    ...(!parseSuccess ? { parseFailureReason: garbled ? "garbled_encoding" as const : "empty_extraction" as const } : {}),
     dateSource,
     dateSignals,
     recommendedChunkStrategy,
@@ -781,7 +656,7 @@ async function parsePdfFile(file: FileEntry): Promise<ParsedDocument> {
     oemSource,
     ...(detectedDocType ? { detectedDocType } : {}),
     ...(pdfAuthorHint ? { pdfAuthorHint } : {}),
-    // cached for downstream phases — avoids re-reading binary files
-    ...(!tikaGarbled && tikaText.length > 0 ? { textContent: tikaText.slice(0, 2_000_000) } : {}),
+    ...(!garbled && text.length > 0 ? { textContent: text.slice(0, 2_000_000) } : {}),
+    parserMetadata: result.metadata,
   };
 }
