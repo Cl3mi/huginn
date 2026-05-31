@@ -12,11 +12,15 @@
     "dashboard:serve": "bun run src/dashboard/cli-serve.ts"
   },
   "dependencies": {
-    "officeparser": "^4.1.0",
+    "canvas": "^3.2.3",
+    "chart.js": "^4.4.0",
+    "d3": "^7.8.0",
     "franc": "^6.2.0",
     "glob": "^11.0.0",
-    "chart.js": "^4.4.0",
-    "d3": "^7.8.0"
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.0",
+    "pdfjs-dist": "^6.0.227",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/bun": "latest",
