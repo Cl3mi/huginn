@@ -209,7 +209,16 @@ main() {
   run_pull_with_spinner "$SCRIPT_DIR/docker-compose.yml"
 
   echo "Starting Huginn..."
-  docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d
+  local up_log
+  up_log="$(mktemp)"
+  if ! docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d 2>"$up_log"; then
+    echo ""
+    echo "Something went wrong. Details:"
+    tail -20 "$up_log"
+    rm -f "$up_log"
+    exit 1
+  fi
+  rm -f "$up_log"
 
   echo ""
   echo "✓ Huginn is running!"
