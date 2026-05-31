@@ -150,6 +150,7 @@ run_pull_with_spinner() {
   local compose_file="$1"
   local log
   log="$(mktemp)"
+  trap 'rm -f "$log"' EXIT
 
   echo "This usually takes 3–5 minutes on first run."
 
@@ -158,34 +159,31 @@ run_pull_with_spinner() {
 
   local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
   local frame_idx=0
-  local elapsed=0
+  local start=$SECONDS
 
+  local exit_code=0
   if [[ -t 1 ]]; then
     while kill -0 "$pull_pid" 2>/dev/null; do
+      local elapsed=$(( SECONDS - start ))
       local mins=$(( elapsed / 60 ))
       local secs=$(( elapsed % 60 ))
       printf "\rDownloading Huginn... %dm %02ds  %s" "$mins" "$secs" "${frames[$frame_idx]}"
       frame_idx=$(( (frame_idx + 1) % ${#frames[@]} ))
       sleep 1
-      elapsed=$(( elapsed + 1 ))
     done
     printf "\r%-60s\r" ""
+    wait "$pull_pid" 2>/dev/null || exit_code=$?
   else
-    wait "$pull_pid" || true
+    wait "$pull_pid" 2>/dev/null || exit_code=$?
   fi
-
-  local exit_code=0
-  wait "$pull_pid" 2>/dev/null || exit_code=$?
 
   if [[ $exit_code -ne 0 ]]; then
     echo "ERROR: Download failed. Details:"
     cat "$log"
-    rm -f "$log"
     exit 1
   fi
 
   echo "✓ Download complete."
-  rm -f "$log"
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
