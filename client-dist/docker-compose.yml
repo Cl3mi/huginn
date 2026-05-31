@@ -45,7 +45,7 @@ services:
     restart: "no"
 
   scanner:
-    image: ghcr.io/REPLACE_WITH_YOUR_ORG/huginn:latest
+    image: ghcr.io/cl3mi/huginn:latest
     depends_on:
       tika:
         condition: service_started
