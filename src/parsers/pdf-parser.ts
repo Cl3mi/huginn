@@ -108,7 +108,7 @@ export async function parsePdf(absolutePath: string): Promise<NativeParseResult>
   // Metadata
   const metadata: Record<string, string> = {};
   try {
-    const { info } = await doc.getMetadata() as { info: Record<string, unknown> };
+    const { info } = (await doc.getMetadata()) as unknown as { info: Record<string, unknown> };
     if (info["Author"])       metadata["Author"]       = String(info["Author"]);
     if (info["Title"])        metadata["Title"]         = String(info["Title"]);
     if (info["CreationDate"]) metadata["Creation-Date"] = String(info["CreationDate"]);
