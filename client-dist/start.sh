@@ -80,38 +80,67 @@ pick_folder_gui() {
 }
 
 load_or_pick_folder() {
-  # Re-use saved path if valid
-  if [[ -f "$CONFIG_FILE" ]]; then
-    local saved
-    saved="$(grep '^DOCUMENTS_PATH=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)"
-    if [[ -n "$saved" && -d "$saved" ]]; then
-      echo "$saved"
-      return
+  local skip_saved=0
+
+  while true; do
+    local folder=""
+
+    # Saved-path confirmation
+    if [[ $skip_saved -eq 0 && -f "$CONFIG_FILE" ]]; then
+      local saved
+      saved="$(grep '^DOCUMENTS_PATH=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)"
+      if [[ -n "$saved" && -d "$saved" ]]; then
+        local reuse
+        read -rp "Last time you used: $saved — use this again? [Y/n] " reuse
+        reuse="${reuse:-Y}"
+        if [[ "${reuse,,}" != "n" ]]; then
+          folder="$saved"
+        else
+          skip_saved=1
+        fi
+      fi
     fi
-  fi
 
-  echo "Please select the folder containing your documents."
-  echo "(A folder picker window will open — check your taskbar if it does not appear in front.)"
-  echo ""
+    # GUI or text picker (skipped when reusing saved path)
+    if [[ -z "$folder" ]]; then
+      echo "Please select the folder containing your documents." >&2
+      echo "(A folder picker window will open — check your taskbar if it does not appear in front.)" >&2
+      echo "" >&2
 
-  local folder
-  if folder="$(pick_folder_gui 2>/dev/null)" && [[ -n "$folder" ]]; then
-    : # GUI picker succeeded
-  else
-    read -rp "Enter the full path to your documents folder: " folder
-  fi
+      if folder="$(pick_folder_gui 2>/dev/null)" && [[ -n "$folder" ]]; then
+        : # GUI picker succeeded
+      else
+        while true; do
+          read -rp "Enter the full path to your documents folder: " folder
+          folder="${folder/#\~/$HOME}"
+          if [[ -z "$folder" ]]; then
+            echo "No folder entered. Please try again." >&2
+            continue
+          fi
+          if [[ ! -d "$folder" ]]; then
+            echo "That path doesn't seem to exist. Please check and try again:" >&2
+            continue
+          fi
+          break
+        done
+      fi
+    fi
 
-  if [[ -z "$folder" ]]; then
-    echo "ERROR: No folder selected."
-    exit 1
-  fi
-  if [[ ! -d "$folder" ]]; then
-    echo "ERROR: '$folder' is not a valid directory."
-    exit 1
-  fi
+    # Empty folder warning
+    if [[ -z "$(ls -A "$folder" 2>/dev/null)" ]]; then
+      echo "" >&2
+      echo "Warning: that folder appears to be empty. Huginn won't find any documents to scan." >&2
+      local cont
+      read -rp "Continue anyway? [y/N] " cont
+      if [[ "${cont,,}" != "y" ]]; then
+        continue
+      fi
+    fi
 
-  echo "DOCUMENTS_PATH=$folder" > "$CONFIG_FILE"
-  echo "$folder"
+    echo "DOCUMENTS_PATH=$folder" > "$CONFIG_FILE"
+    echo "$folder"
+    return
+  done
 }
 
 # ─── Main ────────────────────────────────────────────────────────────────────
@@ -132,11 +161,13 @@ main() {
 
   echo "Documents folder: $docs_path"
   echo ""
+  export DOCUMENTS_PATH="$docs_path"
+
   echo "Pulling latest Huginn image (may take a few minutes on first run)..."
   docker compose -f "$SCRIPT_DIR/docker-compose.yml" pull --quiet
 
   echo "Starting Huginn..."
-  DOCUMENTS_PATH="$docs_path" docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d
+  docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d
 
   echo ""
   echo "✓ Huginn is running!"
