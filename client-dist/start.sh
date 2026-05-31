@@ -89,9 +89,10 @@ load_or_pick_folder() {
     if [[ $skip_saved -eq 0 && -f "$CONFIG_FILE" ]]; then
       local saved
       saved="$(grep '^DOCUMENTS_PATH=' "$CONFIG_FILE" 2>/dev/null | cut -d= -f2-)"
+      saved="${saved/#\~/$HOME}"
       if [[ -n "$saved" && -d "$saved" ]]; then
         local reuse
-        read -rp "Last time you used: $saved — use this again? [Y/n] " reuse
+        read -rp "Last time you used: $saved — use this again? [Y/n] " reuse || true
         reuse="${reuse:-Y}"
         if [[ "${reuse,,}" != "n" ]]; then
           folder="$saved"
@@ -111,7 +112,7 @@ load_or_pick_folder() {
         : # GUI picker succeeded
       else
         while true; do
-          read -rp "Enter the full path to your documents folder: " folder
+          read -rp "Enter the full path to your documents folder: " folder || true
           folder="${folder/#\~/$HOME}"
           if [[ -z "$folder" ]]; then
             echo "No folder entered. Please try again." >&2
@@ -127,11 +128,11 @@ load_or_pick_folder() {
     fi
 
     # Empty folder warning
-    if [[ -z "$(ls -A "$folder" 2>/dev/null)" ]]; then
+    if [[ -z "$(find "$folder" -maxdepth 1 -mindepth 1 -print -quit 2>/dev/null)" ]]; then
       echo "" >&2
       echo "Warning: that folder appears to be empty. Huginn won't find any documents to scan." >&2
       local cont
-      read -rp "Continue anyway? [y/N] " cont
+      read -rp "Continue anyway? [y/N] " cont || true
       if [[ "${cont,,}" != "y" ]]; then
         continue
       fi
