@@ -89,9 +89,25 @@ async function renderPageAndOcr(page: unknown): Promise<string> {
   }
 }
 
+// pdfjs-dist v6 requires DOM globals at runtime (DOMMatrix, ImageData) and
+// recommends its `legacy` build in Node-like environments. node-canvas provides
+// the globals; the legacy build avoids the rest of the DOM-init code path.
+async function ensurePdfjsLib(): Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> {
+  if (typeof (globalThis as { DOMMatrix?: unknown }).DOMMatrix === "undefined") {
+    const canvasMod = (await import("canvas")) as unknown as { DOMMatrix: unknown; ImageData: unknown };
+    (globalThis as { DOMMatrix?: unknown }).DOMMatrix = canvasMod.DOMMatrix;
+    (globalThis as { ImageData?: unknown }).ImageData = canvasMod.ImageData;
+  }
+  const lib = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  // pdfjs-dist v6 in Node needs the legacy worker file. Point at it on first use.
+  if (!lib.GlobalWorkerOptions.workerSrc) {
+    lib.GlobalWorkerOptions.workerSrc = (await import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs"));
+  }
+  return lib;
+}
+
 export async function parsePdf(absolutePath: string): Promise<NativeParseResult> {
-  const pdfjsLib = await import("pdfjs-dist");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "";
+  const pdfjsLib = await ensurePdfjsLib();
 
   const buffer = await readFile(absolutePath);
   const data = new Uint8Array(buffer);
