@@ -153,21 +153,14 @@ export async function runValidate(state: ScannerState): Promise<void> {
     });
   }
 
-  // 5. parserDivergenceRate
-  const officeDocs = state.parsed.filter((d) => d.parserUsed === "officeparser");
-  const diverged = officeDocs.filter((d) =>
-    d.parserComparisonResult?.divergenceLevel === "major"
-  ).length;
-  const divergenceRate = officeDocs.length > 0 ? diverged / officeDocs.length : 0;
+  // 5. parserDivergenceRate — removed (single native parser per format, no comparison needed)
   checks.push({
     checkName: "parserDivergenceRate",
-    passed: divergenceRate <= 0.30,
-    value: divergenceRate,
+    passed: true,
+    value: 0,
     threshold: 0.30,
-    severity: divergenceRate > 0.30 ? "CRITICAL" : "INFO",
-    interpretation: divergenceRate > 0.30
-      ? `${(divergenceRate * 100).toFixed(0)}% of Office files have major parser divergence — CRITICAL: officeparser may be unreliable for this corpus, consider using Tika for all document types`
-      : `${(divergenceRate * 100).toFixed(0)}% major parser divergence in Office files — acceptable`,
+    severity: "INFO",
+    interpretation: "Native per-format parsers — no parser divergence check required",
   });
 
   // 6. scannedPdfRate — graduated by per-doc scannedPageRatio

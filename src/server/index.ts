@@ -1,6 +1,5 @@
 import { CONFIG } from "../config.ts";
 import { logger } from "../utils/logger.ts";
-import { checkTikaHealth } from "../parsers/tika.ts";
 import { checkOllamaHealth } from "../llm/ollama.ts";
 import { runRegexTests } from "../utils/regex-patterns.ts";
 import { runChunkQualityTests } from "../utils/chunk-quality/tests.ts";
@@ -69,13 +68,10 @@ async function start() {
     process.exit(1);
   }
 
-  const tikaOk = await checkTikaHealth();
   const { ok: ollamaOk, modelsAvailable } = await waitForOllama();
-  healthState.tikaOk = tikaOk;
   healthState.ollamaOk = ollamaOk;
   healthState.modelsAvailable = modelsAvailable;
 
-  if (!tikaOk) logger.warn("Tika unreachable — PDF parsing will be skipped");
   if (!ollamaOk) {
     logger.error("Ollama unreachable after retries — aborting (hard gate)");
     process.exit(1);
@@ -84,11 +80,7 @@ async function start() {
   await initSetup();
 
   setInterval(async () => {
-    const [t, { ok: o, modelsAvailable: m }] = await Promise.all([
-      checkTikaHealth(),
-      checkOllamaHealth(),
-    ]);
-    healthState.tikaOk = t;
+    const { ok: o, modelsAvailable: m } = await checkOllamaHealth();
     healthState.ollamaOk = o;
     healthState.modelsAvailable = m;
   }, 30_000);

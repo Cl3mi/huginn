@@ -990,7 +990,6 @@ async function fetchHealth() {
 
 function renderHealth(h) {
   const rows = [
-    {label: 'Tika (PDF parser)', ok: h.tikaOk, warnOnly: true},
     {label: 'Ollama · chat model', ok: h.ollamaOk, warnOnly: false},
     {label: 'Ollama · embed model', ok: h.ollamaOk, warnOnly: false},
   ];

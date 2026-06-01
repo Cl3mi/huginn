@@ -214,7 +214,6 @@ function serializeState(state: ScannerState): unknown {
       hasNumberedHeadings: d.hasNumberedHeadings,
       tableCount: d.tableCount,
       parserUsed: d.parserUsed,
-      parserComparisonResult: d.parserComparisonResult,
       isScannedPdf: d.isScannedPdf,
       isOcrRequired: d.isOcrRequired,
       pdfClassification: d.pdfClassification,
@@ -361,15 +360,11 @@ function generateDecisions(state: ScannerState, push: (...l: string[]) => void):
   push(`- **Confidence:** ${metaReliable ? "MEDIUM" : "LOW — resolve consistency check failures first"}`);
   push("");
 
-  // DEC-PARSER: Parser choice
-  const officeDocs = parsed.filter((d) => d.parserComparisonResult);
-  const majorDiv = officeDocs.filter((d) => d.parserComparisonResult?.divergenceLevel === "major").length;
-  const divRate = officeDocs.length > 0 ? majorDiv / officeDocs.length : 0;
   push("### DEC-PARSER: Parser Configuration");
-  push(`- ${officeDocs.length} Office files compared: ${majorDiv} major divergence (${(divRate * 100).toFixed(0)}%)`);
-  push(`- ${pdfs.length} PDFs parsed via Tika`);
-  push(`- **Recommendation:** ${divRate > 0.30 ? "Switch to Tika for ALL document types — officeparser diverges too often." : "Keep officeparser for Office files (acceptable divergence), Tika for PDFs."}`);
-  push(`- **Confidence:** ${officeDocs.length >= 5 ? "HIGH" : "LOW — too few Office files for robust estimate"}`);
+  push(`- Native per-format parsers: pdfjs (PDF), mammoth (DOCX), SheetJS (XLSX), JSZip (PPTX)`);
+  push(`- ${pdfs.length} PDFs parsed natively`);
+  push(`- **Recommendation:** Native parsers are active — no configuration change required`);
+  push(`- **Confidence:** HIGH`);
   push("");
 
   // DEC-REFS: Reference resolution strategy
@@ -764,33 +759,18 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
   push("");
 
   // Parser evaluation
-  push("## Parser Evaluation (officeparser vs Tika)", "");
-  const officeDocs = state.parsed.filter(d => d.parserComparisonResult);
-  if (officeDocs.length > 0) {
-    const majorDivergence = officeDocs.filter(d => d.parserComparisonResult?.divergenceLevel === "major").length;
-    const minorDivergence = officeDocs.filter(d => d.parserComparisonResult?.divergenceLevel === "minor").length;
-    push(`- Office files compared: ${officeDocs.length}`);
-    push(`- Major divergence (>20% char delta): ${majorDivergence}`);
-    push(`- Minor divergence (5-20%): ${minorDivergence}`);
-    push(`- No divergence: ${officeDocs.length - majorDivergence - minorDivergence}`);
-    push("");
-    push("**Recommendation:** " + (majorDivergence / officeDocs.length > 0.30
-      ? "Use Tika as primary parser for all document types — officeparser diverges too often."
-      : "officeparser is reliable for this corpus. Tika recommended as fallback for PDFs."));
-  } else {
-    push("No Office file comparison data available.");
-  }
+  push("## Parser Evaluation", "");
+  push("Native per-format parsers active: pdfjs-dist (PDF), mammoth (DOCX), SheetJS (XLSX), JSZip (PPTX).");
+  push("Apache Tika and officeparser have been removed. No parser divergence comparison applies.");
   push("");
 
   // RAG pipeline recommendations
   push("## RAG Pipeline Recommendations", "");
   const scannedRate = state.parsed.filter(d => d.isScannedPdf).length / Math.max(state.parsed.filter(d => d.extension === ".pdf").length, 1);
-  const divergenceRate = officeDocs.length > 0 ? officeDocs.filter(d => d.parserComparisonResult?.divergenceLevel === "major").length / officeDocs.length : 0;
   const langMix = state.parsed.filter(d => d.language !== "deu" && d.language !== "und").length / Math.max(state.parsed.length, 1);
 
   const recommendations: string[] = [];
   if (scannedRate > 0.20) recommendations.push(`**OCR REQUIRED:** ${(scannedRate * 100).toFixed(0)}% of PDFs are scanned. Invest in OCR preprocessing (e.g., Tesseract or commercial OCR) before RAG ingestion.`);
-  if (divergenceRate > 0.30) recommendations.push(`**Parser change:** Use Tika for ALL document types — officeparser diverges in ${(divergenceRate * 100).toFixed(0)}% of Office files.`);
   if (intResRate < 0.40 && internalRefs.length > 0) recommendations.push(`**Incomplete corpus:** Only ${(intResRate * 100).toFixed(0)}% of internal references resolve to corpus documents. Request additional documents from client.`);
   if (langMix > 0.30) recommendations.push(`**Bilingual processing:** ${(langMix * 100).toFixed(0)}% non-German documents detected. Implement language-aware chunking in RAG pipeline.`);
   if (state.versionChains.length > 0) recommendations.push(`**Version-aware retrieval:** ${state.versionChains.length} version chain(s) detected. Implement version-aware ranking so newer documents take precedence.`);

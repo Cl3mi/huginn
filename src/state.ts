@@ -45,14 +45,6 @@ export interface HeadingNode {
   approximateTokens: number;
 }
 
-export interface ParserComparison {
-  officeParserChars: number;
-  tikaChars: number;
-  charDeltaPercent: number;
-  headingCountDelta: number;
-  divergenceLevel: "none" | "minor" | "major";
-}
-
 export interface ParsedDocument extends FileEntry {
   charCount: number;
   tokenCountEstimate: number;
@@ -61,8 +53,7 @@ export interface ParsedDocument extends FileEntry {
   headings: HeadingNode[];
   hasNumberedHeadings: boolean;
   tableCount: number;
-  parserUsed: "officeparser" | "tika";
-  parserComparisonResult?: ParserComparison;
+  parserUsed: "pdfjs" | "mammoth" | "sheetjs" | "pptx-native";
   isScannedPdf: boolean;
   isOcrRequired: boolean;
   // Three-tier PDF classification
@@ -72,13 +63,16 @@ export interface ParsedDocument extends FileEntry {
   scannedPageRatio?: number;     // fraction of pages detected as image-only (0.0–1.0)
   scannedPageIndices?: number[]; // 1-indexed page numbers detected as image-only
   parseSuccess: boolean;
-  parseFailureReason?: "empty_extraction" | "tika_error" | "zero_pages" | "garbled_encoding";
+  parseFailureReason?: "empty_extraction" | "parse_error" | "zero_pages" | "garbled_encoding";
   dateSource?: "filename" | "docx_core_xml" | "pdf_metadata" | "mtime"; // kept for Phase 4 compatibility
   dateSignals: DateSignals;      // used by Phase 4 for bestDate ordering
   // Runtime cache — set in Phase 2, consumed by Phases 3/5/6. NEVER serialized to JSON.
   textContent?: string;
   // Runtime hint — set in Phase 2 from Tika PDF metadata. NEVER serialized to JSON.
   pdfAuthorHint?: string;
+  // Runtime cache — parser-provided metadata (author, creation date, company).
+  // Consumed by the origin-classifier loop in Phase 2. NEVER serialized to JSON.
+  parserMetadata?: Record<string, string>;
   // Classification result — set by Phase 2 classifier. Serialized to JSON.
   originClassification?: OriginClassification;
   requirementQuality?: { confirmed: number; negated: number; uncertain: number; raw: number }; // set in Phase 6

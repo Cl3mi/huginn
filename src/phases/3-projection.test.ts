@@ -22,7 +22,7 @@ function makeDoc(overrides: Partial<ParsedDocument> = {}): ParsedDocument {
     headings: [],
     hasNumberedHeadings: false,
     tableCount: 0,
-    parserUsed: "officeparser",
+    parserUsed: "mammoth",
     isScannedPdf: false,
     isOcrRequired: false,
     parseSuccess: true,

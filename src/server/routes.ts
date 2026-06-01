@@ -54,7 +54,6 @@ function json(body: unknown, status = 200): Response {
 
 function handleHealth(): Response {
   return json({
-    tikaOk: healthState.tikaOk,
     ollamaOk: healthState.ollamaOk,
     modelsAvailable: healthState.modelsAvailable,
     scanStatus: scanState.status,

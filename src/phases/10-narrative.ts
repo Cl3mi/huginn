@@ -375,11 +375,6 @@ function buildChunkStrategyInput(state: ScannerState): ChunkStrategyInput {
 }
 
 function buildParserReliabilityInput(state: ScannerState): ParserReliabilityInput {
-  const officeDocs = state.parsed.filter((d) => d.parserComparisonResult !== undefined);
-  const majorDivergenceCount = officeDocs.filter(
-    (d) => d.parserComparisonResult?.divergenceLevel === "major"
-  ).length;
-
   const parseFailures = state.parsed
     .filter((d) => !d.parseSuccess)
     .slice(0, 5)
@@ -388,22 +383,10 @@ function buildParserReliabilityInput(state: ScannerState): ParserReliabilityInpu
       reason: d.parseFailureReason ?? "unknown",
     }));
 
-  const majorDivergenceDocs = officeDocs
-    .filter((d) => d.parserComparisonResult?.divergenceLevel === "major")
-    .slice(0, 5)
-    .map((d) => ({
-      filename: safeFilename(d.filename),
-      divergenceLevel: d.parserComparisonResult!.divergenceLevel,
-      charDeltaPercent: d.parserComparisonResult!.charDeltaPercent,
-      isOcrRequired: d.isOcrRequired,
-      pdfClassification: d.pdfClassification ?? "not_pdf",
-      scannedPageRatio: d.scannedPageRatio ?? 0,
-    }));
-
   return {
-    totalOfficeDocs: officeDocs.length,
-    majorDivergenceCount,
-    divergenceRate: majorDivergenceCount / Math.max(officeDocs.length, 1),
+    totalOfficeDocs: state.parsed.filter((d) => [".docx", ".xlsx", ".pptx"].includes(d.extension)).length,
+    majorDivergenceCount: 0,
+    divergenceRate: 0,
     totalPdfs: state.parsed.filter((d) => d.extension === ".pdf").length,
     fullOcrCount: state.parsed.filter((d) => (d.scannedPageRatio ?? 0) > 0.5).length,
     partialOcrCount: state.parsed.filter((d) => {
@@ -411,7 +394,7 @@ function buildParserReliabilityInput(state: ScannerState): ParserReliabilityInpu
       return r > 0.1 && r <= 0.5;
     }).length,
     parseFailures,
-    majorDivergenceDocs,
+    majorDivergenceDocs: [],
   };
 }
 
