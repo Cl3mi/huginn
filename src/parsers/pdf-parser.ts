@@ -92,22 +92,65 @@ async function renderPageAndOcr(page: unknown): Promise<string> {
 // pdfjs-dist v6 requires DOM globals at runtime (DOMMatrix, ImageData) and
 // recommends its `legacy` build in Node-like environments. node-canvas provides
 // the globals; the legacy build avoids the rest of the DOM-init code path.
-async function ensurePdfjsLib(): Promise<typeof import("pdfjs-dist/legacy/build/pdf.mjs")> {
+// pdfjs's built-in NodeCanvasFactory expects @napi-rs/canvas, which we don't
+// have — supply our own factory backed by node-canvas so offscreen canvases
+// (image masks, transparency groups) round-trip through drawImage correctly.
+let _pdfjsLib: typeof import("pdfjs-dist/legacy/build/pdf.mjs") | null = null;
+let _nodeCanvasFactory: unknown = null;
+
+async function ensurePdfjsLib(): Promise<{
+  lib: typeof import("pdfjs-dist/legacy/build/pdf.mjs");
+  CanvasFactory: unknown;
+}> {
+  if (_pdfjsLib && _nodeCanvasFactory) return { lib: _pdfjsLib, CanvasFactory: _nodeCanvasFactory };
+
+  const canvasMod = (await import("canvas")) as unknown as {
+    createCanvas: (w: number, h: number) => unknown;
+    DOMMatrix: unknown;
+    ImageData: unknown;
+  };
   if (typeof (globalThis as { DOMMatrix?: unknown }).DOMMatrix === "undefined") {
-    const canvasMod = (await import("canvas")) as unknown as { DOMMatrix: unknown; ImageData: unknown };
     (globalThis as { DOMMatrix?: unknown }).DOMMatrix = canvasMod.DOMMatrix;
     (globalThis as { ImageData?: unknown }).ImageData = canvasMod.ImageData;
   }
+
   const lib = await import("pdfjs-dist/legacy/build/pdf.mjs");
-  // pdfjs-dist v6 in Node needs the legacy worker file. Point at it on first use.
   if (!lib.GlobalWorkerOptions.workerSrc) {
     lib.GlobalWorkerOptions.workerSrc = (await import.meta.resolve("pdfjs-dist/legacy/build/pdf.worker.mjs"));
   }
-  return lib;
+
+  class NodeCanvasFactory {
+    create(width: number, height: number): { canvas: unknown; context: unknown } {
+      if (width <= 0 || height <= 0) throw new Error("Invalid canvas size");
+      const canvas = canvasMod.createCanvas(width, height) as {
+        getContext: (t: string) => unknown;
+        width: number;
+        height: number;
+      };
+      return { canvas, context: canvas.getContext("2d") };
+    }
+    reset(entry: { canvas: { width: number; height: number } | null }, width: number, height: number): void {
+      if (!entry.canvas) throw new Error("Canvas is not specified");
+      if (width <= 0 || height <= 0) throw new Error("Invalid canvas size");
+      entry.canvas.width = width;
+      entry.canvas.height = height;
+    }
+    destroy(entry: { canvas: { width: number; height: number } | null; context: unknown }): void {
+      if (!entry.canvas) throw new Error("Canvas is not specified");
+      entry.canvas.width = 0;
+      entry.canvas.height = 0;
+      entry.canvas = null;
+      entry.context = null;
+    }
+  }
+
+  _pdfjsLib = lib;
+  _nodeCanvasFactory = NodeCanvasFactory;
+  return { lib, CanvasFactory: NodeCanvasFactory };
 }
 
 export async function parsePdf(absolutePath: string): Promise<NativeParseResult> {
-  const pdfjsLib = await ensurePdfjsLib();
+  const { lib: pdfjsLib, CanvasFactory } = await ensurePdfjsLib();
 
   const buffer = await readFile(absolutePath);
   const data = new Uint8Array(buffer);
@@ -117,7 +160,8 @@ export async function parsePdf(absolutePath: string): Promise<NativeParseResult>
     disableFontFace: true,
     verbosity: 0,
     useSystemFonts: true,
-  }).promise;
+    CanvasFactory: CanvasFactory as never,
+  } as Parameters<typeof pdfjsLib.getDocument>[0]).promise;
 
   const numPages = doc.numPages;
 
