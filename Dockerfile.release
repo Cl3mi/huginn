@@ -8,11 +8,13 @@ RUN bun install --frozen-lockfile
 COPY src/ ./src/
 COPY tsconfig.json ./
 
-# Bundle TypeScript + all imports (including inlined index.html) to one JS file
-RUN bun build --target=bun src/index.ts --outfile dist/bundle.js
+# Bundle TypeScript + all imports (including inlined index.html) into dist/.
+# Produces dist/index.js plus any native-addon assets (e.g. node-canvas's .node
+# binding from the PDF parser). --outfile cannot emit multiple outputs.
+RUN bun build --target=bun src/index.ts --outdir dist
 
 # Obfuscate: rename vars, flatten control flow, encode strings
-RUN bunx javascript-obfuscator dist/bundle.js \
+RUN bunx javascript-obfuscator dist/index.js \
       --output dist/obfuscated.js \
       --compact true \
       --string-array true \
