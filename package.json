@@ -9,6 +9,7 @@
     "dev": "bun --watch src/index.ts",
     "typecheck": "tsc --noEmit",
     "test:chunk-quality": "bun run src/utils/chunk-quality/tests.ts",
+    "test:e2e": "bun run scripts/e2e-smoke.ts",
     "dashboard:generate": "bun run src/dashboard/cli-generate.ts",
     "dashboard:serve": "bun run src/dashboard/cli-serve.ts"
   },
