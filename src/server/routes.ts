@@ -18,6 +18,7 @@ import { COMPANY_FILE_PATH, loadCompanyIdentity, saveCompanyIdentity } from "../
 import type { CompanyIdentity } from "../profiles/types.ts";
 import { PROFILES } from "../profiles/index.ts";
 import { loadDebugSettings, saveDebugSettings, mergeDebugSettings } from "../debug/settings.ts";
+import uiHtml from "../ui/index.html" with { type: "text" };
 
 type ActivePull = {
   modelId: string;
@@ -449,8 +450,7 @@ export async function handleRequest(req: Request): Promise<Response> {
   if (path === "/api/debug-settings" && req.method === "PATCH") return handlePatchDebugSettings(req);
 
   if (req.method === "GET") {
-    const uiPath = new URL("../ui/index.html", import.meta.url).pathname;
-    return new Response(Bun.file(uiPath), {
+    return new Response(uiHtml as unknown as string, {
       headers: { "Content-Type": "text/html; charset=utf-8" },
     });
   }
