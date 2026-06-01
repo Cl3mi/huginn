@@ -449,7 +449,7 @@ export async function runParse(state: ScannerState): Promise<void> {
   }
 
   _lastAccumulator = projectionAcc;
-  logger.info("Phase 9a complete", { projectedDocs: state.ingestionProjections.length });
+  logger.info("Per-doc ingestion projection complete", { projectedDocs: state.ingestionProjections.length });
 
   const scannedCount = state.parsed.filter((d) => d.pdfClassification === "fully_scanned").length;
   const hybridCount = state.parsed.filter((d) => d.pdfClassification === "hybrid").length;

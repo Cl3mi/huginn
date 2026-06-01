@@ -56,6 +56,7 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
   }
 
   const scanId = `scan-${Date.now()}-${randomUUID().slice(0, 8)}`;
+  const pipelineStartedAt = Date.now();
   logger.info("=== Huginn pipeline start ===", { scanId, folder });
 
   const rootStat = await stat(folder);
@@ -120,13 +121,16 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
     onProgress(evt);
   };
 
+  const phaseDurations: Record<string, number> = {};
   for (const phase of phases) {
     const startedAt = Date.now();
     onProgress?.({ type: "phase_start", phase: phase.name, phaseIndex: phase.idx, totalPhases: 10 });
     try {
       await phase.fn();
+      const durationMs = Date.now() - startedAt;
+      phaseDurations[phase.name] = durationMs;
       emitStats(phase.name);
-      onProgress?.({ type: "phase_end", phase: phase.name, durationMs: Date.now() - startedAt });
+      onProgress?.({ type: "phase_end", phase: phase.name, durationMs });
     } catch (e) {
       onProgress?.({ type: "scan_error", phase: phase.name, message: String(e).slice(0, 200) });
       try {
@@ -150,6 +154,22 @@ export async function runPipeline(config: PipelineConfig): Promise<PipelineResul
 
   setProgressCallback(null);
 
-  logger.info("=== Huginn pipeline complete ===", { scanId });
+  const totalDurationMs = Date.now() - pipelineStartedAt;
+  const criticalFailures = state.consistencyChecks.filter(c => !c.passed && c.severity === "CRITICAL").length;
+  const warningChecks = state.consistencyChecks.filter(c => !c.passed && c.severity === "WARNING").length;
+  logger.info("=== Huginn pipeline complete ===", {
+    scanId,
+    totalDurationMs,
+    phaseDurations,
+    files: state.files.length,
+    parsedOk: state.parsed.filter(p => p.parseSuccess).length,
+    parseFailures: state.parsed.filter(p => !p.parseSuccess).length,
+    versionPairsHigh: state.versionPairs.filter(p => p.confidence === "HIGH").length,
+    requirements: state.requirements.length,
+    references: state.references.length,
+    consistencyCritical: criticalFailures,
+    consistencyWarnings: warningChecks,
+    reports: reportFiles.length,
+  });
   return { scanId, reportFiles };
 }

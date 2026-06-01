@@ -8,7 +8,7 @@ import type {
   MuninnConfigRecommendation,
   CorpusIngestionSummary,
 } from "../state.ts";
-import { logger, setPhase } from "../utils/logger.ts";
+import { logger } from "../utils/logger.ts";
 import { estimateTokens, estimateChunkTokens } from "../utils/token-estimator.ts";
 import { cleanContent, classifyBlock, BOILERPLATE_PATTERNS } from "../utils/cleaner.ts";
 import { filterChunk } from "../utils/chunk-filter.ts";
@@ -415,20 +415,23 @@ function buildCorpusSummary(
   };
 }
 
-// ── Phase 9 main entry point ───────────────────────────────────────────────
+// ── Phase 3 main entry point ───────────────────────────────────────────────
 
 export async function runProjection(state: ScannerState): Promise<void> {
+  const t = logger.phaseStart("3-projection");
+
   const acc = _lastAccumulator;
   if (!acc) {
-    logger.warn("Phase 9: no accumulator from Phase 2 — skipping corpus analysis");
+    logger.warn("No accumulator from Phase 2 — skipping corpus analysis");
+    logger.phaseEnd("3-projection", t, { skipped: true });
     return;
   }
-  setPhase("3-projection");
-  logger.info("Phase 9: Ingestion Projection — corpus analysis", {
+
+  logger.info("Ingestion projection — corpus analysis", {
     projections: state.ingestionProjections.length,
   });
 
-  // 9b: Boilerplate discovery
+  // Boilerplate discovery
   const { patterns, summary: boilerplateSummary } = discoverBoilerplatePatterns(acc, state.ingestionProjections);
   state.discoveredBoilerplatePatterns = patterns;
   logger.info("Boilerplate discovery complete", {
@@ -448,7 +451,7 @@ export async function runProjection(state: ScannerState): Promise<void> {
     profile: state.domainProfile.qualityScorerProfile,
   });
 
-  // 9c: Config recommendations
+  // Config recommendations
   state.muninnConfigRecommendations = generateConfigRecommendations(state, patterns);
   logger.info("Config recommendations generated", {
     count: state.muninnConfigRecommendations.length,
@@ -459,6 +462,13 @@ export async function runProjection(state: ScannerState): Promise<void> {
   logger.info("Corpus ingestion summary built", {
     totalTokensRaw: state.corpusIngestionSummary.totalTokensRaw,
     retentionRate: state.corpusIngestionSummary.overallRetentionRate.toFixed(2),
+    highRiskDocs: state.corpusIngestionSummary.highRiskDocs.length,
+  });
+
+  logger.phaseEnd("3-projection", t, {
+    projections: state.ingestionProjections.length,
+    boilerplatePatterns: patterns.length,
+    configRecommendations: state.muninnConfigRecommendations.length,
     highRiskDocs: state.corpusIngestionSummary.highRiskDocs.length,
   });
 }

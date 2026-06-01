@@ -5,7 +5,7 @@ import type {
   ChunkQualityPerDocTier1,
   ChunkQualityPerDocTier2,
 } from "../state.ts";
-import { logger, setPhase } from "../utils/logger.ts";
+import { logger } from "../utils/logger.ts";
 import { resolveBudget, evenSample } from "../utils/chunk-quality/budget.ts";
 import { EmbeddingCache } from "../utils/chunk-quality/embedding-cache.ts";
 import { chunkDocument } from "../utils/muninn-mirror/chunker.ts";
@@ -52,16 +52,17 @@ function clamp120(s: string): string {
 }
 
 export async function runChunkQuality(state: ScannerState, ollamaOk: boolean): Promise<void> {
-  setPhase("4-chunk-quality");
+  const t = logger.phaseStart("4-chunk-quality");
 
   if (process.env["CHUNK_QUALITY_DISABLE"] === "1") {
-    logger.info("Phase 4: chunk-quality disabled via env var");
+    logger.info("chunk-quality disabled via env var");
+    logger.phaseEnd("4-chunk-quality", t, { skipped: true });
     return;
   }
 
   const budget = resolveBudget();
   state.chunkQuality.corpus.budgetMode = budget.mode;
-  logger.info("Phase 4: chunk-quality start", {
+  logger.info("chunk-quality budget", {
     budgetMode: budget.mode,
     maxChunksPerDoc: budget.maxChunksPerDoc,
     parseSuccessful: state.parsed.filter(d => d.parseSuccess).length,
@@ -278,13 +279,13 @@ export async function runChunkQuality(state: ScannerState, ollamaOk: boolean): P
 
   state.chunkQuality = report;
 
-  logger.info("Phase 4: chunk-quality complete", {
+  logger.phaseEnd("4-chunk-quality", t, {
     docs: perDoc.length,
     totalChunks,
     totalEmbedded,
     indexMean: tokenWeightedIndexMean.toFixed(3),
     bucketCapHit: budgetCapHit,
-    tier2Disabled,
+    tier2Enabled: !tier2Disabled,
   });
 
   cache.clear();

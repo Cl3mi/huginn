@@ -451,6 +451,21 @@ export async function runValidate(state: ScannerState): Promise<void> {
     interpretation: clamp(c.interpretation),
   }));
 
+  // Surface failing checks as warn/error log lines so a client log is self-contained
+  // (no need to crack open the JSON report to learn which check warned).
+  for (const c of state.consistencyChecks) {
+    if (c.passed) continue;
+    const payload = {
+      checkName: c.checkName,
+      severity: c.severity,
+      value: c.value,
+      threshold: c.threshold,
+      interpretation: c.interpretation,
+    };
+    if (c.severity === "CRITICAL") logger.error("Consistency check failed", payload);
+    else if (c.severity === "WARNING") logger.warn("Consistency check failed", payload);
+  }
+
   const criticalCount = checks.filter((c) => !c.passed && c.severity === "CRITICAL").length;
   const warningCount = checks.filter((c) => !c.passed && c.severity === "WARNING").length;
 
