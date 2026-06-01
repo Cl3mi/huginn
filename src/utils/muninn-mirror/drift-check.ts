@@ -13,9 +13,22 @@ const EXPECTED_HASHES: Record<string, string> = {
 export interface DriftCheckResult {
   passed: boolean;
   drifted: Array<{ file: string; expected: string; actual: string }>;
+  skipped?: boolean;
 }
 
+// Detect the standalone-binary filesystem produced by `bun build --compile`.
+// In compiled mode, .ts source files are not on disk — they're bundled into
+// the JS. The drift check only catches dev-time mistakes (forgetting to bump
+// EXPECTED_HASHES after editing chunker/cleaner); in a compiled binary the
+// sources are already baked in and immutable, so the runtime check has no
+// signal to add. The same check still runs at build time via `bun typecheck`
+// and `bun run test:chunk-quality` in CI.
+const IS_COMPILED_BINARY = HERE.startsWith("/$bunfs");
+
 export function checkDrift(): DriftCheckResult {
+  if (IS_COMPILED_BINARY) {
+    return { passed: true, drifted: [], skipped: true };
+  }
   const drifted: DriftCheckResult["drifted"] = [];
   for (const [file, expected] of Object.entries(EXPECTED_HASHES)) {
     const path = join(HERE, file);
