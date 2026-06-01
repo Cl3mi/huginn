@@ -188,7 +188,7 @@ function buildVersionChains(pairs: VersionPair[], docs: ParsedDocument[]): strin
 }
 
 export async function runCluster(state: ScannerState): Promise<void> {
-  const t = logger.phaseStart("5-cluster");
+  const t = logger.phaseStart("6-cluster");
 
   // exclude empty/failed docs — zero-valued fingerprints produce spurious HIGH pairs
   const docs = state.parsed.filter((d) => d.parseSuccess && d.charCount >= 200);
@@ -261,7 +261,7 @@ export async function runCluster(state: ScannerState): Promise<void> {
 
   state.versionChains = buildVersionChains(state.versionPairs, docs);
 
-  logger.phaseEnd("5-cluster", t, {
+  logger.phaseEnd("6-cluster", t, {
     docPairs: (n * (n - 1)) / 2,
     pairsEvaluated,
     versionPairsFound: state.versionPairs.length,

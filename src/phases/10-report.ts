@@ -883,7 +883,7 @@ function generateMarkdown(state: ScannerState, timestamp: string): string {
 }
 
 export async function runReport(state: ScannerState, ollamaAvailable = false): Promise<void> {
-  const t = logger.phaseStart("9-report");
+  const t = logger.phaseStart("10-report");
   state.completedAt = new Date();
 
   const timestamp = state.startedAt.toISOString().replace(/[:.]/g, "-").slice(0, 19);
@@ -946,7 +946,7 @@ export async function runReport(state: ScannerState, ollamaAvailable = false): P
     logger.warn("Debug report generation failed — skipping", { error: String(debugErr) });
   }
 
-  logger.phaseEnd("9-report", t, { jsonPath, mdPath, ...(debugPath ? { debugPath } : {}) });
+  logger.phaseEnd("10-report", t, { jsonPath, mdPath, ...(debugPath ? { debugPath } : {}) });
 
   // Narrative report (additive — does not affect JSON/human.md output)
   try {

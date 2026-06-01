@@ -227,7 +227,7 @@ async function validateWithLlm(
 }
 
 export async function runRequirements(state: ScannerState, ollamaAvailable: boolean): Promise<void> {
-  const t = logger.phaseStart("7-requirements");
+  const t = logger.phaseStart("8-requirements");
 
   const samplePoolByType = new Map<string, Array<{ docId: string; docType: string; heading: string; signals: SectionSignals }>>();
 
@@ -375,7 +375,7 @@ export async function runRequirements(state: ScannerState, ollamaAvailable: bool
 
   const safetyCount = state.requirements.filter((r) => r.isSafetyRelevant).length;
 
-  logger.phaseEnd("7-requirements", t, {
+  logger.phaseEnd("8-requirements", t, {
     totalRequirements: state.requirements.length,
     byType,
     safetyFlagged: safetyCount,
